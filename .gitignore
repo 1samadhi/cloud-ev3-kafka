@@ -1,0 +1,26 @@
+# Compilados de Maven
+target/
+*.jar
+*.war
+
+# Variables de entorno: llevan credenciales y la IP del laboratorio
+.env
+
+# Credenciales de AWS: nunca deben entrar al repositorio
+.aws/
+credentials
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.settings/
+.classpath
+.project
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

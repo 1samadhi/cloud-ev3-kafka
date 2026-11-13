@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: pago
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql-db:3306/pagos_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  kafka:
+    # CORRECCIÓN ERRATA #1: La guía escribía 'SPRING_KAFKA_BOOTSTR_SERVERS' (falta 'AP')
+    # con default a IP del docente (54.226.200.212:9092). Acá está CORRECTO:
+    # - Variable: SPRING_KAFKA_BOOTSTRAP_SERVERS (completa)
+    # - Default: cluster local con 3 brokers
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: payment-velocity-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+ 
+    listener:
+      missing-topics-fatal: false
+      auto-startup: true
+
+server:
+  port: ${SERVER_PORT:8083}
