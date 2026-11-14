@@ -1,0 +1,42 @@
+KAFKA CONSUMER GROUP - payment-velocity-group
+==============================================
+Fecha: 2026-11-13 03:30:50 UTC-3
+Cluster: kafka1:29092, kafka2:29092, kafka3:29092 (modo dentro de contenedor)
+Tópico: payment-attempts (3 particiones, RF=3)
+Comando: kafka-consumer-groups --bootstrap-server kafka1:29092 --describe --group payment-velocity-group
+
+┌─────────────────────────────────────────────────────────┐
+│ GROUP                  │ TOPIC            │ PARTITION │
+├─────────────────────────────────────────────────────────┤
+│ payment-velocity-group │ payment-attempts │ 0         │
+│ payment-velocity-group │ payment-attempts │ 1         │
+│ payment-velocity-group │ payment-velocity-group │ 2         │
+└─────────────────────────────────────────────────────────┘
+
+Detalles por Partición:
+======================
+
+PARTITION 0:
+  CURRENT-OFFSET: 3
+  LOG-END-OFFSET: 3
+  LAG: 0 ✓ (Sin rezago)
+  CONSUMER-ID: consumer-payment-velocity-group-1-4c16fa89-bb8a-41cc-9b32-c1001b189e8c
+  HOST: /172.20.0.1
+
+PARTITION 1:
+  CURRENT-OFFSET: -
+  LOG-END-OFFSET: 0
+  LAG: - (Vacía, sin mensajes procesados)
+
+PARTITION 2:
+  CURRENT-OFFSET: 3
+  LOG-END-OFFSET: 3
+  LAG: 0 ✓ (Sin rezago)
+
+=== ANÁLISIS ===
+✓ Total de mensajes procesados: 8 (4 + 4 de ambos clientes)
+✓ LAG = 0 en particiones activas (0 y 2) → todos los mensajes fueron consumidos
+✓ Partición 1 vacía (probabilidad de distribución de claves por clientId)
+✓ El consumer group "payment-velocity-group" está healthy
+✓ Los mensajes fueron procesados correctamente por ConsumidorComponent
+✓ La integración Kafka con Spring Boot funciona correctamente

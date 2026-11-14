@@ -1,0 +1,16 @@
+{
+  "compilo": true,
+  "json_alertas_real": "{\n  \"bloqueosActivos\": 1,\n  \"totalClientesVigilados\": 8,\n  \"alertas\": [\n    {\n      \"idCliente\": \"cliente_alerta_demo\",\n      \"cantidadIntentos\": 3,\n      \"bloqueadoHasta\": \"2026-11-13T19:58:55\",\n      \"minutosRestantes\": 29,\n      \"actualizadoEn\": \"2026-11-13T19:28:55\"\n    }\n  ]\n}",
+  "fechas_en_formato_legible": true,
+  "codigos_http_rafaga": [
+    "200",
+    "200",
+    "200",
+    "429"
+  ],
+  "coincide_con_mysql": true,
+  "endpoints_viejos_siguen_ok": true,
+  "pid_final": "349943",
+  "problemas_encontrados": [],
+  "resumen": "Endpoint GET /api/alertas implementado exitosamente. Gener\u00f3 bloqueo real con 4 intentos r\u00e1pidos (HTTP 200,200,200,429). Datos coinciden con MySQL. Endpoints antiguos funciona. Fechas en formato ISO legible, sin arreglos de n\u00fameros."
+}

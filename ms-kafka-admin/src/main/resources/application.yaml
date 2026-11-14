@@ -5,6 +5,10 @@ spring:
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
 
+app:
+  cors:
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:8090}
+
 server:
   port: ${SERVER_PORT:8085}
 

@@ -1,0 +1,32 @@
+[
+  {
+    "nombre": "navegacion.eventos",
+    "particiones": 3,
+    "replicas": 3,
+    "isr": "9/9"
+  },
+  {
+    "nombre": "telemtria-camion",
+    "particiones": 3,
+    "replicas": 3,
+    "isr": "9/9"
+  },
+  {
+    "nombre": "payment-attempts",
+    "particiones": 3,
+    "replicas": 3,
+    "isr": "9/9"
+  },
+  {
+    "nombre": "pagos.intentos",
+    "particiones": 3,
+    "replicas": 3,
+    "isr": "9/9"
+  },
+  {
+    "nombre": "interacciones-user",
+    "particiones": 3,
+    "replicas": 3,
+    "isr": "9/9"
+  }
+]

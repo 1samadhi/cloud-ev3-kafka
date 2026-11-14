@@ -36,5 +36,9 @@ spring:
       missing-topics-fatal: false
       auto-startup: true
 
+app:
+  cors:
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:8090}
+
 server:
   port: ${SERVER_PORT:8084}

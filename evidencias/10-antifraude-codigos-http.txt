@@ -1,0 +1,51 @@
+PRUEBA DE ANTIFRAUDE - CÓDIGOS HTTP
+====================================
+Fecha: 2026-11-13 03:30:36 UTC-3
+Cluster: localhost:9092,localhost:9093,localhost:9094 (3 brokers)
+Tópico: payment-attempts (3 particiones, RF=3)
+Grupo Consumer: payment-velocity-group
+
+=== VARIANTE 1: SIN PAUSA (ráfaga rápida) ===
+Cliente: cliente_prueba_1
+Transacciones: TX-1, TX-2, TX-3, TX-4
+
+Petición 1 (TX-1): HTTP 200 OK
+- URL Webpay: https://webpay3gint.transbank.cl/webpayserver/initTransaction
+- Token: 01abaafabae9c6769273aad1a1ef80e3f68eb763914d46ef264e0cc515586ad4
+
+Petición 2 (TX-2): HTTP 200 OK
+- URL Webpay: https://webpay3gint.transbank.cl/webpayserver/initTransaction
+- Token: 01ab819f75c3e1e3a0edf21eb901aa11930bcd8fbe5cc57fe3d52061a291309f
+
+Petición 3 (TX-3): HTTP 200 OK
+- URL Webpay: https://webpay3gint.transbank.cl/webpayserver/initTransaction
+- Token: 01ab6a7b0f0b9e7136c86aa1c59090963f51560c053c0997298cc5fd54d53b11
+
+Petición 4 (TX-4): HTTP 429 TOO_MANY_REQUESTS ✓ ANTIFRAUDE ACTIVADO
+- Mensaje: "Demasiados intentos detectados. Estás bloqueado temporalmente por 30 minutos. Por favor, espera."
+
+=== VARIANTE 2: CON PAUSA DE 1 SEGUNDO ===
+Cliente: cliente_prueba_2
+Transacciones: TX-paus-1, TX-paus-2, TX-paus-3, TX-paus-4
+
+Petición 1 (TX-paus-1): HTTP 200 OK
+- URL Webpay: https://webpay3gint.transbank.cl/webpayserver/initTransaction
+- Token: 01abe5f2d0015008608a287cd6f42be5a1f096bdeb4a3c501f1494a085c33f56
+
+Petición 2 (TX-paus-2): HTTP 200 OK
+- URL Webpay: https://webpay3gint.transbank.cl/webpayserver/initTransaction
+- Token: 01ab41b9b0ee7f82b78e87cfbe173569c41da5d0b30336bf773f0c927fa82cfc
+
+Petición 3 (TX-paus-3): HTTP 200 OK
+- URL Webpay: https://webpay3gint.transbank.cl/webpayserver/initTransaction
+- Token: 01ab8cd62786f1f86e82b32d61c8d79472b039f72636aac35b089fffc606191f
+
+Petición 4 (TX-paus-4): HTTP 429 TOO_MANY_REQUESTS ✓ ANTIFRAUDE ACTIVADO
+- Mensaje: "Demasiados intentos detectados. Estás bloqueado temporalmente por 30 minutos. Por favor, espera."
+
+=== ANÁLISIS ===
+✓ El antifraude detectó correctamente 3 intentos en < 10 segundos (ambas variantes)
+✓ La 4ta petición fue bloqueada con código 429 (TOO_MANY_REQUESTS)
+✓ El comportamiento es consistente tanto sin pausa como con pausa de 1s
+✓ Los tokens de Webpay fueron generados exitosamente en los primeros 3 intentos
+✓ Transbank SDK respondió correctamente (no fue un bloqueo de timeout)

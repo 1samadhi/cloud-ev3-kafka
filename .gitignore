@@ -24,3 +24,6 @@ credentials
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# El frontend vive en su propio repositorio (cloud-ev3-front)
+front/

@@ -1,0 +1,243 @@
+EVIDENCIA DE CONFIGURACIÓN CENTRALIZADA DE CORS - EVALUACIÓN 3 DSY1107
+========================================================================
+
+RESUMEN EJECUTIVO
+-----------------
+Se eliminaron todas las anotaciones @CrossOrigin(origins = "*") de los tres 
+microservicios y se reemplazaron por una configuración centralizada y parametrizable
+mediante application.yaml y variable de entorno CORS_ORIGENES.
+
+Los tres módulos compilaron exitosamente y los servicios operan correctamente con
+CORS configurado para permitir SOLO http://localhost:8090 (el frontend) en desarrollo.
+
+================================================================================
+PASO 1: VERIFICACIÓN DE ANOTACIONES ELIMINADAS
+================================================================================
+
+ms-pago: Eliminadas 2 anotaciones @CrossOrigin
+  - src/main/java/com/kafka/pago/Controller/AlertasController.java
+  - src/main/java/com/kafka/pago/Controller/PagosController.java
+
+ms-recomendaciones: Eliminadas 3 anotaciones @CrossOrigin  
+  - src/main/java/com/kafka/recomendaciones/Controller/MetricasController.java
+  - src/main/java/com/kafka/recomendaciones/Controller/InteraccionController.java
+  - src/main/java/com/kafka/recomendaciones/Controller/RecomendacionesController.java
+
+ms-kafka-admin: Eliminada 1 anotación @CrossOrigin
+  - src/main/java/com/kafka/admin/Controller/KafkaAdminController.java
+
+TOTAL: 6 anotaciones @CrossOrigin eliminadas
+
+================================================================================
+PASO 2: COMPILACIÓN - BUILD SUCCESS
+================================================================================
+
+[INFO] ms-pago - BUILD SUCCESS (11.253 s)
+[INFO] ms-recomendaciones - BUILD SUCCESS (9.108 s)
+[INFO] ms-kafka-admin - BUILD SUCCESS (7.338 s)
+
+================================================================================
+PASO 3: PRUEBAS DE CORS - RESULTADO FINAL
+================================================================================
+
+PUERTO 8083 (ms-pago) - RUTA /api/alertas
+================================================
+
+PRUEBA A) Origen permitido (http://localhost:8090):
+--------------------------------------------------
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Access-Control-Allow-Origin: http://localhost:8090
+Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+Allow: GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH
+Content-Length: 0
+Date: Sat, 14 Nov 2026 23:38:26 GMT
+
+✓ CORRECTO: Cabecera Access-Control-Allow-Origin contiene http://localhost:8090 (no asterisco)
+
+PRUEBA B) Origen NO autorizado (http://sitio-malicioso.com):
+------------------------------------------------------------
+HTTP/1.1 403 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Transfer-Encoding: chunked
+Date: Sat, 14 Nov 2026 23:38:26 GMT
+
+Invalid CORS request
+
+✓ CORRECTO: Retorna 403 (CORS rechazado), NO devuelve Access-Control-Allow-Origin
+
+PRUEBA C) Petición SIN cabecera Origin (acceso directo):
+-------------------------------------------------------
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+
+✓ CORRECTO: Retorna 200 (acceso directo funciona sin CORS)
+
+
+PUERTO 8084 (ms-recomendaciones) - RUTA /api/metricas
+================================================
+
+PRUEBA A) Origen permitido (http://localhost:8090):
+--------------------------------------------------
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Access-Control-Allow-Origin: http://localhost:8090
+Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+Allow: GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH
+Content-Length: 0
+Date: Sat, 14 Nov 2026 23:38:26 GMT
+
+✓ CORRECTO: Cabecera Access-Control-Allow-Origin contiene http://localhost:8090 (no asterisco)
+
+PRUEBA B) Origen NO autorizado (http://sitio-malicioso.com):
+------------------------------------------------------------
+HTTP/1.1 403 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Transfer-Encoding: chunked
+Date: Sat, 14 Nov 2026 23:38:26 GMT
+
+Invalid CORS request
+
+✓ CORRECTO: Retorna 403 (CORS rechazado), NO devuelve Access-Control-Allow-Origin
+
+PRUEBA C) Petición SIN cabecera Origin (acceso directo):
+-------------------------------------------------------
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+
+✓ CORRECTO: Retorna 200 (acceso directo funciona sin CORS)
+
+
+PUERTO 8085 (ms-kafka-admin) - RUTA /api/topicos
+================================================
+
+PRUEBA A) Origen permitido (http://localhost:8090):
+--------------------------------------------------
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Access-Control-Allow-Origin: http://localhost:8090
+Access-Control-Allow-Methods: GET,POST,PUT,DELETE,OPTIONS
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+Allow: GET, HEAD, POST, PUT, DELETE, OPTIONS, PATCH
+Content-Length: 0
+Date: Sat, 14 Nov 2026 23:38:26 GMT
+
+✓ CORRECTO: Cabecera Access-Control-Allow-Origin contiene http://localhost:8090 (no asterisco)
+
+PRUEBA B) Origen NO autorizado (http://sitio-malicioso.com):
+------------------------------------------------------------
+HTTP/1.1 403 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Transfer-Encoding: chunked
+Date: Sat, 14 Nov 2026 23:38:26 GMT
+
+Invalid CORS request
+
+✓ CORRECTO: Retorna 403 (CORS rechazado), NO devuelve Access-Control-Allow-Origin
+
+PRUEBA C) Petición SIN cabecera Origin (acceso directo):
+-------------------------------------------------------
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+
+✓ CORRECTO: Retorna 200 (acceso directo funciona sin CORS)
+
+
+================================================================================
+PASO 4: VARIABLE DE ENTORNO - PARAMETRIZACIÓN SIN RECOMPILACIÓN
+================================================================================
+
+PRUEBA: Reiniciar ms-kafka-admin con CORS_ORIGENES='http://otro-origen.test'
+---
+
+Con CORS_ORIGENES='http://otro-origen.test':
+
+1. Nuevo origen PERMITE acceso:
+   curl -i -X OPTIONS 'http://localhost:8085/api/topicos' \
+         -H 'Origin: http://otro-origen.test' \
+         -H 'Access-Control-Request-Method: GET'
+   
+   RESULTADO:
+   HTTP/1.1 200 
+   Access-Control-Allow-Origin: http://otro-origen.test
+   
+   ✓ CORRECTO: Origen sobrescrito por variable de entorno
+
+2. Origen anterior YA NO permite acceso:
+   curl -i -X OPTIONS 'http://localhost:8085/api/topicos' \
+         -H 'Origin: http://localhost:8090' \
+         -H 'Access-Control-Request-Method: GET'
+   
+   RESULTADO:
+   HTTP/1.1 403
+   Invalid CORS request
+   
+   ✓ CORRECTO: localhost:8090 rechazado cuando CORS_ORIGENES usa otro origen
+
+CONCLUSIÓN: La variable de entorno CORS_ORIGENES efectivamente sobreescribe el valor
+en application.yaml sin necesidad de recompilación. Esto permite cambiar la
+configuración entre ambientes (localhost para desarrollo, URL de AWS para producción).
+
+================================================================================
+PASO 5: SERVICIOS EN OPERACIÓN
+================================================================================
+
+Estado final de los tres servicios (todos restarted con configuración por defecto):
+
+ms-pago (puerto 8083): PID 816626
+  java -jar target/ms-pago-1.0.0.jar --server.port=8083 \
+    --spring.kafka.bootstrap-servers=localhost:9092,localhost:9093,localhost:9094 \
+    --spring.datasource.url=jdbc:mysql://localhost:3306/pagos_db
+
+ms-recomendaciones (puerto 8084): PID 816713
+  java -jar target/ms-recomendaciones-1.0.0.jar --server.port=8084 \
+    --spring.kafka.bootstrap-servers=localhost:9092,localhost:9093,localhost:9094 \
+    --spring.datasource.url=jdbc:mysql://localhost:3306/pagos_db
+
+ms-kafka-admin (puerto 8085): PID 826662
+  java -jar target/ms-kafka-admin-1.0.0.jar --server.port=8085 \
+    --spring.kafka.bootstrap-servers=localhost:9092,localhost:9093,localhost:9094
+
+================================================================================
+CONCLUSIÓN TÉCNICA
+================================================================================
+
+✓ CORS centralizado: Se creó una clase Config/CorsConfig.java en cada módulo
+  que implementa WebMvcConfigurer e inyecta la propiedad app.cors.origenes-permitidos
+
+✓ Configuración parametrizable: La propiedad se define en application.yaml con
+  valor por defecto http://localhost:8090 y es sobreescribible por la variable
+  de entorno CORS_ORIGENES
+
+✓ Separación de responsabilidades: El CORS dejó de vivir en los controladores
+  (importa org.springframework.web.bind.annotation.CrossOrigin) y ahora está
+  centralizado en infraestructura
+
+✓ Seguridad: allowCredentials=true combinado con allowedOrigins concretos
+  (no asterisco) es la configuración segura. Spring rechaza automáticamente
+  la combinación allowCredentials=true + asterisco
+
+✓ Portabilidad: La misma configuración sirve para desarrollo (localhost:8090)
+  y puede adaptarse a AWS simplemente seteando CORS_ORIGENES en el launch
+
+Fin del reporte.

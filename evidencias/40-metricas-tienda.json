@@ -1,0 +1,25 @@
+{
+  "productosMasVistos": [
+    {
+      "itemId": "item_116",
+      "nombre": "Aspiradora Robot Inteligente",
+      "categoria": "hogar",
+      "vistas": 4
+    },
+    {
+      "itemId": "item_117",
+      "nombre": "Set de Sartenes Antiadherentes",
+      "categoria": "hogar",
+      "vistas": 3
+    },
+    {
+      "itemId": "item_112",
+      "nombre": "Notebook Gamer 15.6\"",
+      "categoria": "electronica",
+      "vistas": 3
+    }
+  ],
+  "interaccionesPorMinuto": 10,
+  "usuariosActivos": 3,
+  "totalInteracciones": 10
+}

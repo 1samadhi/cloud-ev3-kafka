@@ -19,7 +19,6 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/pagos")
-@CrossOrigin(origins = "*")
 public class PagosController {
 
     @Autowired 

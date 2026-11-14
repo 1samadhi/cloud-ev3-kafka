@@ -1,0 +1,27 @@
+{
+  "groupId": "recommendation-consumer-group",
+  "lagTotal": 0,
+  "detalles": [
+    {
+      "topico": "interacciones-user",
+      "particion": 0,
+      "offsetActual": 10,
+      "offsetFinal": 10,
+      "lag": 0
+    },
+    {
+      "topico": "interacciones-user",
+      "particion": 2,
+      "offsetActual": 5,
+      "offsetFinal": 5,
+      "lag": 0
+    },
+    {
+      "topico": "interacciones-user",
+      "particion": 1,
+      "offsetActual": 6,
+      "offsetFinal": 6,
+      "lag": 0
+    }
+  ]
+}

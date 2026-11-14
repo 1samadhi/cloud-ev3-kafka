@@ -1,0 +1,22 @@
+ESTADO DE CLIENTES EN MYSQL - tabla estado_pago_cliente
+========================================================
+Fecha: 2026-11-13 03:30:46 UTC-3
+Base de datos: pagos_db
+Contenedor: mysql-pagos-db
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ id_cliente    │ actualizado_en        │ bloqueado │ bloqueado_hasta         │ intentos │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ cliente_prueba_1 │ 2026-11-13 03:30:36 │ true  │ 2026-11-13 04:00:36     │ 3        │
+│ cliente_prueba_2 │ 2026-11-13 03:30:44 │ true  │ 2026-11-13 04:00:44     │ 3        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+=== ANÁLISIS ===
+✓ Ambos clientes registran 3 intentos dentro de la ventana de 10 segundos
+✓ Estado 'bloqueado' = true para ambos (booleano 1 = true)
+✓ bloqueado_hasta es exactamente 30 minutos después del último intento (actualizado_en)
+  - cliente_prueba_1: 03:30:36 + 30 min = 04:00:36 ✓
+  - cliente_prueba_2: 03:30:44 + 30 min = 04:00:44 ✓
+✓ Contador de intentos se acumula correctamente (3 = umbral de activación)
+✓ La persistencia en MySQL funciona correctamente
+✓ Hibernate JPA con 'ddl-auto: update' creó la tabla automáticamente

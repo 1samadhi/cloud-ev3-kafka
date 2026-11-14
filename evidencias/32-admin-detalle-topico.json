@@ -1,0 +1,56 @@
+{
+  "nombre": "payment-attempts",
+  "particiones": 3,
+  "replicas": 3,
+  "isr": "9/9",
+  "configuracion": {
+    "retentionMs": "604800000",
+    "cleanupPolicy": "delete",
+    "minInsyncReplicas": "2",
+    "segmentBytes": "268435456"
+  },
+  "particionesDetalle": [
+    {
+      "numero": 0,
+      "lider": 2,
+      "replicas": [
+        2,
+        1,
+        3
+      ],
+      "isr": [
+        2,
+        1,
+        3
+      ]
+    },
+    {
+      "numero": 1,
+      "lider": 3,
+      "replicas": [
+        3,
+        2,
+        1
+      ],
+      "isr": [
+        2,
+        1,
+        3
+      ]
+    },
+    {
+      "numero": 2,
+      "lider": 1,
+      "replicas": [
+        1,
+        3,
+        2
+      ],
+      "isr": [
+        1,
+        2,
+        3
+      ]
+    }
+  ]
+}

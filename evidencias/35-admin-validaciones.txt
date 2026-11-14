@@ -1,0 +1,17 @@
+=== TEST 1: POST con replicas=99 (error, solo hay 3 brokers) ===
+{
+  "mensaje": "Replication factor: 99 larger than available brokers: 3",
+  "codigo": 400
+}
+
+=== TEST 2: POST con nombre vacío ===
+{
+  "mensaje": "El nombre del tópico no puede estar vacío",
+  "codigo": 400
+}
+
+=== TEST 3: DELETE tópico protegido payment-attempts ===
+{
+  "mensaje": "El tópico 'payment-attempts' es un tópico en uso del proyecto y no puede ser eliminado. Tópicos protegidos: interacciones-user, payment-attempts, telemtria-camion",
+  "codigo": 400
+}

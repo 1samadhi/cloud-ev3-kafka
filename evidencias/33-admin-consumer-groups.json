@@ -1,0 +1,18 @@
+[
+  {
+    "id": "recommendation-consumer-group",
+    "estado": "Optional[Stable]",
+    "cantidadMiembros": 1,
+    "topicos": [
+      "interacciones-user"
+    ]
+  },
+  {
+    "id": "payment-velocity-group",
+    "estado": "Optional[Stable]",
+    "cantidadMiembros": 1,
+    "topicos": [
+      "payment-attempts"
+    ]
+  }
+]

@@ -22,7 +22,6 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/recomendaciones")
-@CrossOrigin(origins = "*")
 public class RecomendacionesController {
 
     private final RecomendacionesService recomendacionesServices;

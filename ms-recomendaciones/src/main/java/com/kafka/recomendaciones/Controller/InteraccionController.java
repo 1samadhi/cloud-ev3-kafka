@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -13,10 +12,6 @@ import com.kafka.recomendaciones.Service.InteraccionService;
 
 @RestController 
 @RequestMapping ("/api/interacciones")
-// La guia pone @CrossOrigin solo en RecomendacionesController y lo olvida aca.
-// Sin esto el navegador bloquea el POST desde el frontend (preflight CORS) y la
-// pantalla de recomendaciones puede leer el Top 5 pero no generar interacciones.
-@CrossOrigin(origins = "*")
 public class InteraccionController {
     private final InteraccionService interaccionService;
 
