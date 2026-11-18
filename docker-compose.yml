@@ -1,0 +1,332 @@
+# =============================================================================
+#  Pedidos360 — stack completo con un comando
+#  DSY1107 · Evaluación 3
+#
+#      docker compose up -d --build
+#
+#  Levanta, en este orden y esperando a que cada capa este SANA:
+#
+#      zookeeper1..3  ->  kafka1..3  ->  creacion de topicos  ->  microservicios
+#      mysql          ->  ms-pago / ms-recomendaciones
+#      microservicios ->  consola (frontend)
+#
+#  Por que un compose en la raiz y no los dos que ya existian: infra/ levantaba
+#  el cluster y ms-pago/ levantaba MySQL, pero los tres microservicios y el
+#  frontend quedaban a mano (tres mvn package, tres java -jar y un contenedor
+#  aparte). Para demostrar el sistema hay que poder levantarlo entero sin una
+#  secuencia de pasos que se pueda ejecutar mal.
+#
+#  infra/docker-compose.yml SIGUE SIRVIENDO para trabajar solo el cluster.
+#  Este archivo es el camino de la demostracion completa.
+#
+#  Variables (ver .env.example):
+#      KAFKA_HOST   host que los brokers ANUNCIAN a los clientes del host
+#      MYSQL_PASS   clave de root de MySQL
+# =============================================================================
+
+x-kafka-common: &kafka-common
+  image: confluentinc/cp-kafka:7.5.0
+  # 512 MB por broker: 3 brokers + 3 zookeeper + 3 JVM de Spring + MySQL tienen
+  # que convivir en un notebook. El default de la imagen es 1 GB por JVM.
+  environment: &kafka-env
+    KAFKA_ZOOKEEPER_CONNECT: "zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNO:PLAINTEXT,EXTERNO:PLAINTEXT"
+    KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNO"
+    KAFKA_HEAP_OPTS: "-Xmx512M -Xms512M"
+    # --- Replicacion: con 3 brokers se puede exigir factor 3 ---
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    KAFKA_MIN_INSYNC_REPLICAS: 2          # tolera la caida de 1 broker sin perder escrituras
+    KAFKA_NUM_PARTITIONS: 3
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # los topicos se crean explicitamente
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    # --- Retencion y limpieza, explicitas (lo pide la rubrica) ---
+    KAFKA_LOG_RETENTION_HOURS: 168        # 7 dias
+    KAFKA_LOG_RETENTION_BYTES: 1073741824 # 1 GB por particion
+    KAFKA_LOG_CLEANUP_POLICY: "delete"
+    KAFKA_LOG_SEGMENT_BYTES: 268435456    # 256 MB
+  healthcheck:
+    test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
+    interval: 15s
+    timeout: 10s
+    retries: 12
+    start_period: 40s
+  restart: unless-stopped
+  networks: [pedidos360]
+
+x-zk-common: &zk-common
+  image: confluentinc/cp-zookeeper:7.5.0
+  environment: &zk-env
+    ZOOKEEPER_CLIENT_PORT: 2181
+    ZOOKEEPER_TICK_TIME: 2000
+    ZOOKEEPER_INIT_LIMIT: 5
+    ZOOKEEPER_SYNC_LIMIT: 2
+    # Quorum de 3: tolera la caida de 1 nodo (2 de 3 siguen siendo mayoria).
+    ZOOKEEPER_SERVERS: "zookeeper1:2888:3888;zookeeper2:2888:3888;zookeeper3:2888:3888"
+    ZOOKEEPER_4LW_COMMANDS_WHITELIST: "ruok,stat,srvr,conf,mntr"
+    KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M"
+  healthcheck:
+    # 'ruok' NO sirve: desde ZK 3.5 esta fuera de la whitelist por defecto y la
+    # variable de entorno no la traduce el script de Confluent. 'srvr' si esta
+    # permitido y devuelve "Mode: leader|follower", que solo aparece cuando el
+    # nodo esta sincronizado dentro del quorum.
+    test: ["CMD-SHELL", "echo srvr | nc -w 2 localhost 2181 | grep -q Mode"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+  restart: unless-stopped
+  networks: [pedidos360]
+
+# Variables comunes a los microservicios que hablan con Kafka y MySQL.
+x-spring-env: &spring-env
+  # Entre contenedores se usa el listener INTERNO: kafka1:29092. El 9092 del
+  # host no existe dentro de la red de Docker.
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka1:29092,kafka2:29092,kafka3:29092"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-db:3306/pagos_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+  SPRING_DATASOURCE_USERNAME: "root"
+  SPRING_DATASOURCE_PASSWORD: "${MYSQL_PASS:-123456}"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+  # Origen del frontend servido por nginx en este mismo compose. El CORS declara
+  # la ruta concreta y no un comodin, asi que cambiar el puerto publicado del
+  # front obliga a cambiar esta variable.
+  CORS_ORIGENES: "http://localhost:8090,http://localhost:5173"
+
+services:
+  # ------------------------------------------------------------ Zookeeper
+  zookeeper1:
+    <<: *zk-common
+    container_name: zookeeper1
+    environment:
+      <<: *zk-env
+      ZOOKEEPER_SERVER_ID: 1
+    ports: ["2181:2181"]
+    volumes:
+      - zk1_data:/var/lib/zookeeper/data
+      - zk1_log:/var/lib/zookeeper/log
+
+  zookeeper2:
+    <<: *zk-common
+    container_name: zookeeper2
+    environment:
+      <<: *zk-env
+      ZOOKEEPER_SERVER_ID: 2
+    ports: ["2182:2181"]
+    volumes:
+      - zk2_data:/var/lib/zookeeper/data
+      - zk2_log:/var/lib/zookeeper/log
+
+  zookeeper3:
+    <<: *zk-common
+    container_name: zookeeper3
+    environment:
+      <<: *zk-env
+      ZOOKEEPER_SERVER_ID: 3
+    ports: ["2183:2181"]
+    volumes:
+      - zk3_data:/var/lib/zookeeper/data
+      - zk3_log:/var/lib/zookeeper/log
+
+  # --------------------------------------------------------------- Brokers
+  kafka1:
+    <<: *kafka-common
+    container_name: kafka1
+    depends_on:
+      zookeeper1: { condition: service_healthy }
+      zookeeper2: { condition: service_healthy }
+      zookeeper3: { condition: service_healthy }
+    ports: ["9092:9092"]
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENERS: "INTERNO://0.0.0.0:29092,EXTERNO://0.0.0.0:9092"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNO://kafka1:29092,EXTERNO://${KAFKA_HOST:-localhost}:9092"
+    volumes:
+      - kafka1_data:/var/lib/kafka/data
+
+  kafka2:
+    <<: *kafka-common
+    container_name: kafka2
+    depends_on:
+      zookeeper1: { condition: service_healthy }
+      zookeeper2: { condition: service_healthy }
+      zookeeper3: { condition: service_healthy }
+    ports: ["9093:9093"]
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 2
+      KAFKA_LISTENERS: "INTERNO://0.0.0.0:29092,EXTERNO://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNO://kafka2:29092,EXTERNO://${KAFKA_HOST:-localhost}:9093"
+    volumes:
+      - kafka2_data:/var/lib/kafka/data
+
+  kafka3:
+    <<: *kafka-common
+    container_name: kafka3
+    depends_on:
+      zookeeper1: { condition: service_healthy }
+      zookeeper2: { condition: service_healthy }
+      zookeeper3: { condition: service_healthy }
+    ports: ["9094:9094"]
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 3
+      KAFKA_LISTENERS: "INTERNO://0.0.0.0:29092,EXTERNO://0.0.0.0:9094"
+      KAFKA_ADVERTISED_LISTENERS: "INTERNO://kafka3:29092,EXTERNO://${KAFKA_HOST:-localhost}:9094"
+    volumes:
+      - kafka3_data:/var/lib/kafka/data
+
+  # ------------------------------------------------------- Creacion de topicos
+  # Contenedor de un solo uso. Los topicos se crean aca y no con
+  # auto.create.topics porque la rubrica pide particiones, factor de
+  # replicacion, retencion y min.insync.replicas EXPLICITOS, y la creacion
+  # automatica los haria con los defaults del broker.
+  #
+  # --if-not-exists lo vuelve idempotente: `compose up` dos veces no falla.
+  crear-topicos:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: crear-topicos
+    depends_on:
+      kafka1: { condition: service_healthy }
+      kafka2: { condition: service_healthy }
+      kafka3: { condition: service_healthy }
+    networks: [pedidos360]
+    restart: "no"
+    command: >
+      bash -c '
+      set -e;
+      for t in payment-attempts interacciones-user; do
+        kafka-topics --bootstrap-server kafka1:29092 --create --if-not-exists
+          --topic "$$t" --partitions 3 --replication-factor 3
+          --config retention.ms=604800000
+          --config cleanup.policy=delete
+          --config min.insync.replicas=2
+          --config segment.bytes=268435456;
+      done;
+      echo "--- topicos del cluster ---";
+      kafka-topics --bootstrap-server kafka1:29092 --list;
+      '
+
+  # -------------------------------------------------------------- Kafka UI
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka1: { condition: service_healthy }
+      kafka2: { condition: service_healthy }
+      kafka3: { condition: service_healthy }
+    ports: ["8080:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "pedidos360"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka1:29092,kafka2:29092,kafka3:29092"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
+      DYNAMIC_CONFIG_ENABLED: "true"
+    restart: unless-stopped
+    networks: [pedidos360]
+
+  # ----------------------------------------------------------------- MySQL
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-pagos-db
+    environment:
+      MYSQL_DATABASE: pagos_db
+      MYSQL_ROOT_PASSWORD: "${MYSQL_PASS:-123456}"
+    ports: ["3306:3306"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_PASS:-123456}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+    networks: [pedidos360]
+
+  # -------------------------------------------------------- Microservicios
+  ms-pago:
+    build:
+      context: ./ms-pago
+    container_name: ms-pago
+    ports: ["8083:8083"]
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8083
+      # El returnUrl lo abre el NAVEGADOR, no otro contenedor: tiene que ser una
+      # direccion alcanzable desde el host, no el nombre del servicio en Docker.
+      PAGOS_RETURN_URL: "http://localhost:8083/api/pagos/commit"
+      FRONT_URL: "http://localhost:8090"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      crear-topicos: { condition: service_completed_successfully }
+    restart: unless-stopped
+    networks: [pedidos360]
+
+  ms-recomendaciones:
+    build:
+      context: ./ms-recomendaciones
+    container_name: ms-recomendaciones
+    ports: ["8084:8084"]
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8084
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      crear-topicos: { condition: service_completed_successfully }
+    restart: unless-stopped
+    networks: [pedidos360]
+
+  ms-kafka-admin:
+    build:
+      context: ./ms-kafka-admin
+    container_name: ms-kafka-admin
+    ports: ["8085:8085"]
+    environment:
+      # No usa MySQL: solo necesita los brokers y el origen del frontend.
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka1:29092,kafka2:29092,kafka3:29092"
+      CORS_ORIGENES: "http://localhost:8090,http://localhost:5173"
+      SERVER_PORT: 8085
+    depends_on:
+      crear-topicos: { condition: service_completed_successfully }
+    restart: unless-stopped
+    networks: [pedidos360]
+
+  # -------------------------------------------------------------- Frontend
+  # El contexto apunta al repo del frontend, que es un repositorio aparte y se
+  # espera clonado AL LADO de este. Si no esta, comentar este servicio: el
+  # backend levanta igual y la consola se puede correr con `npm run dev`.
+  consola:
+    build:
+      context: ../cloud-ev3-front
+    container_name: consola
+    ports: ["8090:80"]
+    environment:
+      # Las URL las consume el NAVEGADOR, asi que van con localhost y el puerto
+      # publicado, nunca con el nombre del servicio de Docker.
+      API_PAGOS: "http://localhost:8083"
+      API_RECOMENDACIONES: "http://localhost:8084"
+      API_ADMIN: "http://localhost:8085"
+      WS_URL: "${WS_URL:-}"
+    depends_on:
+      ms-pago: { condition: service_healthy }
+      ms-recomendaciones: { condition: service_healthy }
+      ms-kafka-admin: { condition: service_healthy }
+    restart: unless-stopped
+    networks: [pedidos360]
+
+networks:
+  pedidos360:
+    driver: bridge
+
+volumes:
+  zk1_data: {}
+  zk1_log: {}
+  zk2_data: {}
+  zk2_log: {}
+  zk3_data: {}
+  zk3_log: {}
+  kafka1_data: {}
+  kafka2_data: {}
+  kafka3_data: {}
+  mysql_data: {}

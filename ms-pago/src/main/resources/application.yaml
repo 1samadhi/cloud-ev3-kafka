@@ -56,5 +56,25 @@ app:
     # porque Transbank vuelve con un POST y una SPA estatica no puede leerlo.
     return-url: ${PAGOS_RETURN_URL:http://localhost:8083/api/pagos/commit}
 
+# -----------------------------------------------------------------------------
+# Actuator: solo health, y solo lo necesario.
+#
+# Se expone unicamente "health" porque el resto de los endpoints (env, beans,
+# configprops, heapdump) filtran configuracion y credenciales sin pedir
+# autenticacion, y aca no hay Spring Security que los cubra.
+# -----------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # El detalle por componente es lo que permite ver CUAL dependencia esta
+      # caida (base, cluster) en lugar de un DOWN sin explicacion.
+      show-details: always
+      probes:
+        enabled: true
+
 server:
   port: ${SERVER_PORT:8083}

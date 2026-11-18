@@ -32,6 +32,15 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Spring Boot Actuator: expone /actuator/health para el healthcheck de
+             Docker, el depends_on del compose y el sondeo del frontend. Sin esto
+             el estado de un servicio solo se puede adivinar llamando a un
+             endpoint de negocio. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Spring Data JPA -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

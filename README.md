@@ -24,6 +24,63 @@ Stack: Java 21 · Spring Boot 3.5.6 · Apache Kafka 7.5.0 · MySQL 8.0 · SDK Tr
 
 ## Arranque
 
+### Todo el sistema con un comando
+
+```bash
+cp .env.example .env     # ajustar KAFKA_HOST si no es local
+docker compose up -d --build
+```
+
+El `docker-compose.yml` de la raíz levanta el stack completo y en orden, esperando
+a que cada capa esté **sana** antes de arrancar la siguiente:
+
+```
+zookeeper1..3 → kafka1..3 → creación de tópicos → microservicios → consola
+mysql ─────────────────────────────────────────┘
+```
+
+| Servicio | URL |
+|---|---|
+| Consola (frontend) | http://localhost:8090 |
+| ms-pago | http://localhost:8083 |
+| ms-recomendaciones | http://localhost:8084 |
+| ms-kafka-admin | http://localhost:8085 |
+| Kafka UI | http://localhost:8080 |
+
+Tres detalles del compose que no son evidentes:
+
+- **Los tópicos los crea un contenedor de un solo uso** (`crear-topicos`), no
+  `auto.create.topics`: la rúbrica pide particiones, factor de replicación,
+  retención y `min.insync.replicas` explícitos, y la creación automática los
+  haría con los defaults del broker. Lleva `--if-not-exists`, así que `up` dos
+  veces no falla, y los microservicios esperan su
+  `service_completed_successfully`.
+- **Dentro de Docker los servicios usan `kafkaN:29092`**, el listener INTERNO.
+  El `9092` del host no existe en la red de contenedores.
+- **Las URL que abre el navegador van con `localhost`**, nunca con el nombre del
+  servicio de Docker: `PAGOS_RETURN_URL`, `FRONT_URL` y las tres `API_*` de la
+  consola las resuelve el navegador del usuario, no Docker.
+
+El servicio `consola` construye el frontend desde `../cloud-ev3-front`, que se
+espera clonado al lado de este repositorio. Si no está, comentá ese servicio: el
+backend levanta igual.
+
+Para trabajar **sólo el clúster**, `infra/docker-compose.yml` sigue sirviendo.
+
+#### Validar el compose sin Docker
+
+```bash
+python infra/validar-compose.py docker-compose.yml
+```
+
+Comprueba que el YAML parsee, que las anclas se mezclen, que todo `depends_on`
+apunte a un servicio existente, que los microservicios usen el listener interno
+y que los orígenes de CORS coincidan con el puerto en el que se publica la
+consola. No reemplaza a `docker compose config`: no valida imágenes ni contextos
+de build.
+
+### Arranque manual, paso a paso
+
 ### 1. Clúster Kafka
 
 ```bash
@@ -199,6 +256,49 @@ El borrado rechaza los tópicos internos y los tres tópicos en uso del proyecto
 curl -s http://localhost:8085/api/consumer-groups/recommendation-consumer-group/lag
 ```
 
+## Salud de los servicios
+
+Los tres exponen `/actuator/health`, y **sólo** ese endpoint de Actuator: el
+resto (`env`, `beans`, `configprops`, `heapdump`) filtra configuración y
+credenciales sin pedir autenticación, y acá no hay Spring Security que los
+cubra.
+
+```bash
+curl -s http://localhost:8085/actuator/health | jq
+```
+
+```json
+{
+  "status": "UP",
+  "components": {
+    "diskSpace": { "status": "UP" },
+    "kafkaCluster": {
+      "status": "UP",
+      "details": { "clusterId": "...", "brokers": 3, "brokersMinimos": 2, "controlador": 1 }
+    }
+  }
+}
+```
+
+Para qué sirve, concretamente:
+
+- **`HEALTHCHECK` de cada imagen** — antes no había, así que el contenedor se
+  reportaba sano apenas arrancaba el proceso.
+- **`depends_on: condition: service_healthy`** del compose, que es lo que evita
+  que un microservicio arranque contra una base que todavía no acepta
+  conexiones.
+- **El indicador de la consola**, que dejó de sondear endpoints de negocio.
+
+**Spring Boot no trae un indicador de salud para Kafka**: de fábrica `health`
+mira la aplicación, el disco y la base. En un proyecto de streaming eso deja
+fuera justo la dependencia que importa, así que `ms-kafka-admin` agrega
+`KafkaClusterHealthIndicator` con el `AdminClient` que ya tenía.
+
+Ese indicador reporta **DOWN con menos de 2 brokers vivos**, no con cero: con un
+solo broker el clúster no puede honrar el `min.insync.replicas=2` con el que se
+crearon los tópicos, y una escritura con `acks=all` empezaría a fallar. Reportar
+UP en ese estado sería mentirle al healthcheck.
+
 ## Configuración de Kafka
 
 Decisiones explícitas del clúster:
@@ -243,3 +343,7 @@ archivo se versiona.
 comas y viene por defecto con `http://localhost:5173` (Vite en desarrollo) y
 `http://localhost:8090` (la imagen nginx del frontend). Un origen que no esté en la lista recibe
 el bloqueo del navegador aunque el servicio responda.
+
+El mapeo cubre `/api/**` y también `/actuator/**`, porque la consola lee
+`/actuator/health` desde el navegador: sin ese segundo mapeo mostraría los tres
+servicios como caídos estando arriba.
