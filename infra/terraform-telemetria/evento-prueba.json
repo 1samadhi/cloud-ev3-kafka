@@ -1,0 +1,27 @@
+{
+  "tipo": { "S": "metricas" },
+  "ocurridoEn": { "S": "2026-11-18T01:00:00Z" },
+  "interaccionesPorMinuto": { "N": "42" },
+  "usuariosActivos": { "N": "7" },
+  "totalInteracciones": { "N": "1280" },
+  "productosMasVistos": {
+    "L": [
+      {
+        "M": {
+          "itemId": { "S": "item_116" },
+          "nombre": { "S": "Aspiradora robot A9" },
+          "categoria": { "S": "hogar" },
+          "vistas": { "N": "31" }
+        }
+      },
+      {
+        "M": {
+          "itemId": { "S": "item_109" },
+          "nombre": { "S": "Monitor 27\" 165Hz" },
+          "categoria": { "S": "electronica" },
+          "vistas": { "N": "18" }
+        }
+      }
+    ]
+  }
+}

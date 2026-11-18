@@ -8,10 +8,13 @@ El frontend está en un repositorio aparte: [cloud-ev3-front](https://github.com
 ## Componentes
 
 ```
-infra/                 Clúster Kafka: 3 Zookeeper + 3 brokers + Kafka UI
+docker-compose.yml     Stack completo: clúster, MySQL, microservicios y consola
+infra/                 Clúster Kafka solo: 3 Zookeeper + 3 brokers + Kafka UI
+infra/terraform-telemetria/  DynamoDB + Streams + Lambdas + API Gateway WebSocket
 ms-pago/               Pagos con Webpay Plus y detección de fraude  :8083
 ms-recomendaciones/    Recomendaciones por clickstream              :8084
 ms-kafka-admin/        Administración y supervisión del clúster     :8085
+lambda-telemetria/     Las dos Lambdas del dashboard en tiempo real
 ```
 
 | Servicio | Puerto | Tópico | Grupo de consumo |
@@ -298,6 +301,92 @@ Ese indicador reporta **DOWN con menos de 2 brokers vivos**, no con cero: con un
 solo broker el clúster no puede honrar el `min.insync.replicas=2` con el que se
 crearon los tópicos, y una escritura con `acks=all` empezaría a fallar. Reportar
 UP en ese estado sería mentirle al healthcheck.
+
+## Telemetría en tiempo real — Lambdas y API Gateway
+
+La parte del sistema que vive en AWS. El diseño está explicado en
+`ARQUITECTURA-PEDIDOS360.md`; acá está cómo desplegarlo.
+
+```
+escritura en DynamoDB → Streams → Lambda Procesador → API Gateway → navegador
+                                        ↑
+   $connect / $disconnect → Lambda Conexiones → tabla ConexionesWebSocket
+```
+
+### Las dos funciones
+
+Un solo jar (`lambda-telemetria/`) con dos handlers: comparten el modelo del
+evento y la mitad de las dependencias, así que separarlos duplicaría 11 MB sin
+ganar nada.
+
+| Función | Handler | Qué hace |
+|---|---|---|
+| Conexiones | `ConexionesHandler` | registra y borra conexiones en `$connect` / `$disconnect` |
+| Procesador | `ProcesadorHandler` | recibe el lote del stream y lo difunde a todos los conectados |
+
+Detalles que importan:
+
+- **El jar no lleva Spring.** Una Lambda no necesita un contexto de Spring, y
+  arrancar uno en cada invocación multiplicaría el arranque en frío, que es lo
+  único delicado de Java sobre Lambda.
+- **Netty y Apache HttpClient quedan excluidos** del SDK; se usa
+  `url-connection-client`, que va sobre la JDK. El jar baja de 16 MB a 11 MB, y
+  en Lambda el tamaño del artefacto se paga en cada arranque en frío.
+- **Se difunde un mensaje con el lote completo**, no uno por evento: con la
+  ventana de 1 segundo del trigger los eventos llegan agrupados, y
+  `postToConnection` se cobra por mensaje. El dashboard ya espera un arreglo.
+- **El 410 Gone borra la conexión.** Cuando un navegador se va sin que
+  `$disconnect` alcance a limpiar, API Gateway responde 410; sin borrar ahí, la
+  tabla acumula conexiones muertas a las que se intenta escribir para siempre.
+- **El endpoint de administración va en `https://`** aunque el navegador use
+  `wss://`. Es la misma API vista desde el otro lado, y confundirlos es el error
+  clásico de este montaje.
+
+### Despliegue
+
+```bash
+cd lambda-telemetria && mvn clean package     # genera el jar sombreado
+cd ../infra/terraform-telemetria
+terraform init
+terraform apply
+```
+
+La salida `url_websocket` es lo que se pega en el campo *Endpoint WebSocket* de
+la consola, o lo que se pasa como `WS_URL` al contenedor del frontend.
+
+Para comprobar el pipeline de punta a punta, con la consola conectada:
+
+```bash
+aws dynamodb put-item --table-name EventosOperaciones-desarrollo \
+  --item file://evento-prueba.json --region us-east-1
+```
+
+El evento debería aparecer en el tablero al instante.
+
+### Decisiones de la infraestructura
+
+| Decisión | Por qué |
+|---|---|
+| `NEW_IMAGE` en el stream | al dashboard sólo le interesa el dato nuevo; `NEW_AND_OLD_IMAGES` duplicaría el tamaño de cada registro |
+| `batch_size` 50 + ventana de 1 s | el lote es un techo; lo que agrupa de verdad es la ventana, imperceptible en un tablero |
+| `LATEST` | al desplegar no se reproduce todo el historial del stream |
+| `maximum_retry_attempts` 2 | un evento que no se puede difundir no debe bloquear el shard y detener la telemetría |
+| `PAY_PER_REQUEST` | la carga de una demostración es a ráfagas; con capacidad fija hay que elegir entre pagar de más o recibir throttling |
+| TTL en las dos tablas | la telemetría se mira en vivo y después no sirve; las conexiones muertas se barren solas |
+| Dos roles IAM | cada función recibe sólo lo que necesita, y se ve en la consola quién puede qué |
+| `execute-api:ManageConnections` acotado a la etapa | con `*`, cualquier Lambda de la cuenta podría escribir a cualquier WebSocket |
+
+### Lo que falta para que salga del flujo real
+
+Las Lambdas difunden lo que haya en la tabla, pero **ningún microservicio
+escribe todavía en `EventosOperaciones`**. Hoy se alimenta a mano con el
+`put-item` de arriba.
+
+Para cerrarlo, `ms-recomendaciones` y `ms-pago` tendrían que escribir su evento
+en DynamoDB además de publicarlo en Kafka: en `InteraccionService` después de
+producir la interacción, y en `ConsumidorComponent` cuando el antifraude marca
+un bloqueo. Son dos puntos concretos, y requieren credenciales de AWS en los
+servicios.
 
 ## Configuración de Kafka
 
