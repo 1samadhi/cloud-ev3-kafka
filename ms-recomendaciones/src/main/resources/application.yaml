@@ -38,7 +38,9 @@ spring:
 
 app:
   cors:
-    origenes-permitidos: ${CORS_ORIGENES:http://localhost:8090}
+    # Se agrega el 5173 de Vite: es el origen del frontend React en desarrollo.
+    # El 8090 sigue siendo el de la imagen nginx del front.
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:8090}
 
 server:
   port: ${SERVER_PORT:8084}

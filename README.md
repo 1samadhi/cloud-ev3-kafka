@@ -88,8 +88,9 @@ java -jar ms-kafka-admin/target/*.jar --server.port=8085 \
 ## ms-pago — Webpay y antifraude
 
 ```
-POST /api/pagos/iniciar          { clientId, amount, transactionId }
-POST /api/pagos/commit?token_ws= confirma la transacción en Transbank
+POST     /api/pagos/iniciar       { clientId, amount, transactionId }
+POST|GET /api/pagos/commit        vuelta de Transbank: confirma y redirige al frontend
+GET      /api/alertas             bloqueos vigentes y clientes vigilados
 ```
 
 El flujo consulta primero si el cliente está bloqueado; si no lo está, publica el intento al
@@ -132,6 +133,28 @@ RUT `11.111.111-1`, clave `123`, cualquier fecha futura.
 
 La redirección a Webpay debe hacerse por **POST** con el campo `token_ws` en un formulario.
 Un `GET` es rechazado por Transbank.
+
+### Vuelta desde Webpay
+
+Transbank devuelve al navegador haciendo un **POST** con `token_ws` al `returnUrl`. Una página
+estática no puede leer el cuerpo de un POST, así que el `returnUrl` apunta a este mismo
+servicio y no al frontend:
+
+```
+Webpay --POST token_ws--> :8083/api/pagos/commit --302--> <frontend>/callback?estado=...
+```
+
+`commit` confirma la transacción, actualiza el estado del cliente y recién entonces redirige
+al frontend por GET con el resultado en el query string (`estado`, `orden`, `cliente`, `monto`,
+`autorizacion`, `tarjeta`, `fecha`). Cuando el cliente abandona el formulario, Transbank no
+envía `token_ws` sino `TBK_TOKEN`: ese caso se trata como anulación, no como error.
+
+Las dos URL se parametrizan por entorno:
+
+| Variable | Default | Qué es |
+|---|---|---|
+| `PAGOS_RETURN_URL` | `http://localhost:8083/api/pagos/commit` | lo que recibe Transbank |
+| `FRONT_URL` | `http://localhost:5173` | base del frontend al que se redirige |
 
 ## ms-recomendaciones — clickstream
 
@@ -215,3 +238,8 @@ está sincronizado.
 
 **Las credenciales no van en `application.yaml`.** Se leen de variables de entorno, porque ese
 archivo se versiona.
+
+**CORS declara orígenes concretos, no comodín.** `CORS_ORIGENES` acepta una lista separada por
+comas y viene por defecto con `http://localhost:5173` (Vite en desarrollo) y
+`http://localhost:8090` (la imagen nginx del frontend). Un origen que no esté en la lista recibe
+el bloqueo del navegador aunque el servicio responda.
