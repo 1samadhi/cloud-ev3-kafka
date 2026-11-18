@@ -5,6 +5,9 @@ microservicios sobre dos tópicos.
 
 El frontend está en un repositorio aparte: [cloud-ev3-front](https://github.com/1samadhi/cloud-ev3-front)
 
+El *por qué* de cada cambio, una tarea por documento, está en
+[`docs/trabajo/`](docs/trabajo/README.md).
+
 ## Componentes
 
 ```
