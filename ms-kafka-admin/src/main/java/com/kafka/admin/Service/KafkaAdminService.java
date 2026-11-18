@@ -25,11 +25,11 @@ public class KafkaAdminService {
 
     private final AdminClient adminClient;
 
-    // Tópicos protegidos que no pueden ser eliminados
+    // Topicos del dominio que no pueden eliminarse desde la API de administracion:
+    // borrarlos en caliente dejaria a los microservicios publicando al vacio.
     private static final Set<String> TOPICOS_PROTEGIDOS = Set.of(
             "payment-attempts",
-            "interacciones-user",
-            "telemtria-camion"
+            "interacciones-user"
     );
 
     /**
