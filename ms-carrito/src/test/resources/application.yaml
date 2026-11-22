@@ -1,0 +1,41 @@
+# Perfil de pruebas: reemplaza COMPLETO al application.yaml de main (mismo nombre en el classpath).
+# Nada de esto necesita Docker: H2 en memoria, Kafka embebido sólo donde se pide y RabbitMQ mockeado.
+spring:
+  application:
+    name: ms-carrito-test
+  datasource:
+    url: jdbc:h2:mem:carrito_test;DB_CLOSE_DELAY=-1;MODE=MySQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  kafka:
+    # Lo sobrescribe @EmbeddedKafka (spring.embedded.kafka.brokers) en la prueba de integración.
+    bootstrap-servers: localhost:9092
+  rabbitmq:
+    addresses: localhost:5672
+    connection-timeout: 1s
+
+app:
+  kafka:
+    # Sin broker real los contenedores no deben arrancar; la prueba con @EmbeddedKafka lo enciende.
+    auto-arranque-listeners: false
+  envios:
+    # El scheduler de logística no debe mover pedidos solo durante las pruebas.
+    avance-habilitado: false
+  productos:
+    url: http://localhost:8086
+
+management:
+  health:
+    rabbit:
+      enabled: false
+
+logging:
+  level:
+    org.apache.kafka: WARN
+    kafka: WARN
+    org.apache.zookeeper: WARN
