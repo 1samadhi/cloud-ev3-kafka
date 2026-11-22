@@ -9,7 +9,25 @@ app:
   cors:
     # Se agrega el 5173 de Vite: es el origen del frontend React en desarrollo.
     # El 8090 sigue siendo el de la imagen nginx del front.
-    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:8090}
+    # 5174/8091 = tienda (dev/docker), igual que el resto de los servicios (§3.5).
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+
+  kafka-admin:
+    # Espera máxima por respuesta del AdminClient: pasado esto la API responde
+    # 503 en lugar de dejar el hilo HTTP colgado con un broker caído.
+    timeout-ms: ${KAFKA_ADMIN_TIMEOUT_MS:10000}
+    # La API no deja borrar los tópicos del proyecto ni sus DLT (§2.1): borrar
+    # uno por error en la demo deja a un servicio sin su flujo.
+    topicos-protegidos:
+      - interacciones-user
+      - payment-attempts
+      - pagos-resultado
+      - catalogo-productos
+      - interacciones-user.DLT
+      - payment-attempts.DLT
+      - pagos-resultado.DLT
+      - catalogo-productos.DLT
+      - telemtria-camion
 
 # -----------------------------------------------------------------------------
 # Actuator: solo health, y solo lo necesario.
