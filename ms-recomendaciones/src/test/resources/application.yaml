@@ -1,0 +1,59 @@
+# Configuracion de pruebas: reemplaza COMPLETA a la de main (mismo nombre en el
+# classpath), por eso repite todas las claves app.*. Sin DynamoDB real: los
+# repositorios en memoria toman su lugar (app.dynamodb.habilitado=false).
+spring:
+  application:
+    name: recomendaciones-test
+  kafka:
+    # @EmbeddedKafka publica la direccion del broker en esta propiedad.
+    bootstrap-servers: ${spring.embedded.kafka.brokers:localhost:9092}
+    listener:
+      missing-topics-fatal: false
+
+app:
+  kafka:
+    topicos:
+      interacciones: interacciones-user
+      catalogo: catalogo-productos
+      sufijo-dlt: .DLT
+    grupos:
+      recomendaciones: grupo-recomendaciones-test
+      dashboard: grupo-dashboard-test
+      catalogo: grupo-catalogo-recomendaciones-test
+      dlt: grupo-dlt-recomendaciones-test
+    concurrencia:
+      recomendaciones: 3
+      dashboard: 1
+      catalogo: 1
+    reintentos:
+      # Backoff corto: las pruebas no deben esperar 1+2+4 s por reintento.
+      intervalo-inicial-ms: 50
+      multiplicador: 2.0
+      intervalo-maximo-ms: 200
+      maximo: 3
+  recomendaciones:
+    ventana-eventos: 100
+    top: 5
+  metricas:
+    # Rapido para que la prueba del WebSocket no espere 2 s por mensaje.
+    difusion-ms: 300
+  dynamodb:
+    habilitado: false
+    endpoint:
+    region: us-east-1
+    crear-tablas: false
+    publicar-operaciones: false
+    operaciones-ms: 5000
+    operaciones-ttl-horas: 24
+    tablas:
+      historial: HistorialEventos-test
+      recomendaciones: RecomendacionesUsuario-test
+      operaciones: EventosOperaciones-test
+  cors:
+    origenes-permitidos: http://localhost:5173,http://localhost:8090
+
+logging:
+  level:
+    org.apache.kafka: WARN
+    kafka: WARN
+    org.springframework.kafka: INFO

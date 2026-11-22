@@ -1,43 +1,31 @@
 package com.kafka.recomendaciones.Controller;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import com.kafka.recomendaciones.DTO.ProductoEnriquecidoDTO;
-import com.kafka.recomendaciones.Service.RecomendacionesService;
+import com.kafka.recomendaciones.Exception.PayloadInvalidoException;
+import com.kafka.recomendaciones.Service.ServicioRecomendaciones;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Consulta del Top 5 de recomendaciones de un usuario.
- *
- * CORRECCION A LA GUIA: la guia devolvia la entidad JPA "Recomendaciones" cruda,
- * que solo trae itemId, score y rankPosition. El frontend no puede mostrar un
- * producto con eso: le faltan nombre, marca, precio e imagen. La guia ademas
- * define ProductoEnriquecidoDTO y nunca lo usa.
- *
- * Aca se devuelve el DTO enriquecido cruzando cada recomendacion con el catalogo.
- * Devolver el DTO y no la entidad tambien evita exponer la forma de la tabla en
- * la API, que es lo que corresponde.
- */
+/** GET /api/recomendaciones?userId= : el ultimo top 5 con motivo (contrato historico + campos nuevos). */
 @RestController
 @RequestMapping("/api/recomendaciones")
 public class RecomendacionesController {
 
-    private final RecomendacionesService recomendacionesServices;
+    private final ServicioRecomendaciones servicio;
 
-    // Inyeccion por constructor: si falta un bean el fallo es al arrancar y no
-    // un NullPointerException en la primera peticion.
-    public RecomendacionesController(RecomendacionesService recomendacionesServices) {
-        this.recomendacionesServices = recomendacionesServices;
+    public RecomendacionesController(ServicioRecomendaciones servicio) {
+        this.servicio = servicio;
     }
 
     @GetMapping
-    public ResponseEntity<List<ProductoEnriquecidoDTO>> getRecommendations(
-            @RequestParam("userId") String userId) {
-        if (userId == null || userId.trim().isEmpty()) {
-            return ResponseEntity.badRequest().build();
+    public List<ProductoEnriquecidoDTO> obtener(@RequestParam("userId") String userId) {
+        if (userId.isBlank()) {
+            throw new PayloadInvalidoException("userId es obligatorio");
         }
-        return ResponseEntity.ok(recomendacionesServices.obtenerTop5Enriquecido(userId));
+        return servicio.obtener(userId.trim());
     }
 }

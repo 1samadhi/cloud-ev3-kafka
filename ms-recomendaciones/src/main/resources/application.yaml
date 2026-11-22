@@ -1,53 +1,79 @@
 spring:
   application:
-    name: recomendaciones
+    name: ms-recomendaciones
 
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql-db:3306/pagos_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:123456}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      connection-timeout: 30000
-      validation-timeout: 5000
-
-  jpa:
-    hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-
+  # Sin base relacional: el historial y las recomendaciones viven en DynamoDB.
+  # La configuracion del cliente Kafka NO va aca sino en Config/KafkaConfig.java,
+  # donde cada propiedad esta explicita y comentada (criterio 1 de la pauta).
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-    consumer:
-      group-id: recommendation-consumer-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
- 
     listener:
+      # Si el topico aun no existe (crear-topicos todavia no corrio) el servicio
+      # arranca igual y se suscribe cuando aparezca.
       missing-topics-fatal: false
-      auto-startup: true
 
 app:
+  kafka:
+    topicos:
+      interacciones: interacciones-user
+      catalogo: catalogo-productos
+      # Sufijo que usa DeadLetterPublishingRecoverer por defecto: <topico>.DLT
+      sufijo-dlt: .DLT
+    grupos:
+      recomendaciones: grupo-recomendaciones
+      dashboard: grupo-dashboard
+      catalogo: grupo-catalogo-recomendaciones
+      dlt: grupo-dlt-recomendaciones
+    concurrencia:
+      # 3 hilos se reparten las 6 particiones de interacciones-user (reparto).
+      recomendaciones: 3
+      # El dashboard agrega en memoria: un solo hilo evita contencion y no
+      # necesita mas, solo cuenta.
+      dashboard: 1
+      catalogo: 1
+    reintentos:
+      # Backoff exponencial 1 s, x2, maximo 10 s, 3 reintentos (§3.4).
+      intervalo-inicial-ms: 1000
+      multiplicador: 2.0
+      intervalo-maximo-ms: 10000
+      maximo: 3
+
+  recomendaciones:
+    # Ventana del perfil del usuario: los ultimos N eventos.
+    ventana-eventos: 100
+    top: 5
+
+  metricas:
+    # Cada cuanto se difunde el snapshot por /ws/metricas.
+    difusion-ms: 2000
+
+  dynamodb:
+    # false = repositorios en memoria (pruebas o desarrollo sin DynamoDB Local).
+    habilitado: ${DYNAMODB_HABILITADO:true}
+    # Vacio = AWS real con la cadena de credenciales por defecto (incluye
+    # AWS_SESSION_TOKEN del Learner Lab). En compose: http://dynamodb-local:8000
+    endpoint: ${DYNAMODB_ENDPOINT:}
+    region: ${AWS_REGION:us-east-1}
+    crear-tablas: ${DYNAMODB_CREAR_TABLAS:true}
+    # Solo si hay una Lambda escuchando el stream tiene sentido escribir el
+    # snapshot cada 5 s; en local seria gasto sin lector.
+    publicar-operaciones: ${DYNAMODB_PUBLICAR_OPERACIONES:false}
+    operaciones-ms: 5000
+    # Los eventos de operaciones son telemetria: el TTL los borra solos.
+    operaciones-ttl-horas: 24
+    tablas:
+      historial: ${DYNAMODB_TABLA_HISTORIAL:HistorialEventos}
+      recomendaciones: ${DYNAMODB_TABLA_RECOMENDACIONES:RecomendacionesUsuario}
+      # Mismo nombre que crea infra/terraform-telemetria (EventosOperaciones-<entorno>),
+      # para que la Lambda Procesador lea lo que este servicio escribe.
+      operaciones: ${DYNAMODB_TABLA_OPERACIONES:EventosOperaciones-desarrollo}
+
   cors:
-    # Se agrega el 5173 de Vite: es el origen del frontend React en desarrollo.
-    # El 8090 sigue siendo el de la imagen nginx del front.
-    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:8090}
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
 
 # -----------------------------------------------------------------------------
-# Actuator: solo health, y solo lo necesario.
-#
-# Se expone unicamente "health" porque el resto de los endpoints (env, beans,
-# configprops, heapdump) filtran configuracion y credenciales sin pedir
-# autenticacion, y aca no hay Spring Security que los cubra.
+# Actuator: solo health. El resto (env, beans, heapdump) filtra configuracion y
+# credenciales sin autenticacion, y aca no hay Spring Security que los cubra.
 # -----------------------------------------------------------------------------
 management:
   endpoints:
@@ -56,8 +82,6 @@ management:
         include: health
   endpoint:
     health:
-      # El detalle por componente es lo que permite ver CUAL dependencia esta
-      # caida (base, cluster) en lugar de un DOWN sin explicacion.
       show-details: always
       probes:
         enabled: true
