@@ -1,0 +1,119 @@
+# =============================================================================
+#  Pedidos360 — clúster RabbitMQ de 3 nodos (standalone)
+#  DSY1107 · Evaluación 3
+#
+#      cd infra/rabbitmq
+#      docker compose up -d
+#      docker compose exec rabbitmq1 rabbitmq-diagnostics cluster_status
+#
+#  UI de management: http://localhost:15672 (y 15673 / 15674, mismo clúster).
+#  AMQP desde el host: localhost:5672,localhost:5673,localhost:5674 — es el
+#  default de spring.rabbitmq.addresses en ms-carrito, ms-notificaciones y
+#  ms-rabbit-admin, así que los servicios corridos con `mvn spring-boot:run`
+#  se conectan con failover sin configurar nada.
+#
+#  Por qué 3 nodos y no 1: las colas de notificaciones son QUORUM (Raft). Un
+#  grupo Raft necesita mayoría para aceptar escrituras: con 3 réplicas la
+#  mayoría es 2, así que se puede apagar cualquier nodo (`docker compose stop
+#  rabbitmq2`) y las notificaciones siguen fluyendo sin perder mensajes
+#  confirmados. Con 2 nodos la mayoría también sería 2 y una sola caída dejaría
+#  la cola sin líder.
+#
+#  Variables (opcionales, todas con default para desarrollo):
+#      RABBITMQ_USER / RABBITMQ_PASS   usuario administrador (pedidos360/pedidos360)
+#      RABBITMQ_ERLANG_COOKIE          secreto compartido entre nodos
+#
+#  Este archivo sirve para trabajar SOLO la mensajería. El compose de la raíz
+#  integra los mismos nodos al stack completo (ver PLAN-INTEGRACION-EV3 §13).
+# =============================================================================
+
+x-rabbitmq-comun: &rabbitmq-comun
+  # 3.13 con management: trae la UI y la API HTTP que usa ms-rabbit-admin para
+  # listar colas, exchanges, bindings y el estado de los nodos. Alpine por peso.
+  image: rabbitmq:3.13-management-alpine
+  environment:
+    # La cookie de Erlang es el secreto con el que los nodos se autentican
+    # entre sí: si no es IDÉNTICA en los tres, no se pueden unir al clúster.
+    # (La 3.13 avisa que esta variable está deprecada en favor de montar
+    # ~/.erlang.cookie; se mantiene porque es la forma más simple de que los
+    # tres contenedores compartan el mismo valor desde un único lugar.)
+    RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-pedidos360-cookie-dev}
+    # Usuario administrador creado en el primer arranque. Los nodos que se unen
+    # al clúster reciben los usuarios replicados desde rabbitmq1.
+    RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-pedidos360}
+    RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-pedidos360}
+  # Los volúmenes van en cada servicio (la fusión `<<:` de YAML reemplaza
+  # listas, no las concatena). Los tres montan el MISMO rabbitmq.conf en solo
+  # lectura: classic_config, particiones y límites idénticos en todo el clúster.
+  healthcheck:
+    # ping comprueba que el nodo Erlang y la aplicación rabbit responden; es lo
+    # que permite que rabbitmq2/3 esperen a un rabbitmq1 REALMENTE arriba.
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+    interval: 10s
+    timeout: 10s
+    retries: 12
+    start_period: 30s
+  # Coherente con vm_memory_high_watermark.absolute=384MB de rabbitmq.conf:
+  # RabbitMQ frena a los publicadores antes de llegar al límite del contenedor.
+  mem_limit: 512m
+  restart: unless-stopped
+  networks: [pedidos360-rabbitmq]
+
+services:
+  # Nodo semilla: arranca primero y solo. Los otros dos se unen a él.
+  rabbitmq1:
+    <<: *rabbitmq-comun
+    container_name: rabbitmq1
+    # El hostname ES la identidad del nodo (rabbit@rabbitmq1) y la clave de sus
+    # datos en el volumen: tiene que ser fijo.
+    hostname: rabbitmq1
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # management (UI + API HTTP)
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq1-datos:/var/lib/rabbitmq
+
+  rabbitmq2:
+    <<: *rabbitmq-comun
+    container_name: rabbitmq2
+    hostname: rabbitmq2
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq2-datos:/var/lib/rabbitmq
+    # Esperar a que rabbitmq1 esté sano evita la carrera de classic_config en
+    # la que dos nodos vacíos no se encuentran y cada uno forma su propio
+    # clúster de 1 nodo.
+    depends_on:
+      rabbitmq1:
+        condition: service_healthy
+
+  rabbitmq3:
+    <<: *rabbitmq-comun
+    container_name: rabbitmq3
+    hostname: rabbitmq3
+    ports:
+      - "5674:5672"
+      - "15674:15672"
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq3-datos:/var/lib/rabbitmq
+    depends_on:
+      rabbitmq1:
+        condition: service_healthy
+
+# Red propia: los nodos se resuelven por hostname (rabbitmq1/2/3) a través del
+# DNS interno de Docker, que es lo que necesitan Erlang y classic_config.
+networks:
+  pedidos360-rabbitmq:
+    name: pedidos360-rabbitmq
+
+# Un volumen nombrado por nodo: cada nodo guarda su propio log Raft y su
+# metadata. Compartir un volumen entre nodos corrompería ambos.
+volumes:
+  rabbitmq1-datos:
+  rabbitmq2-datos:
+  rabbitmq3-datos:

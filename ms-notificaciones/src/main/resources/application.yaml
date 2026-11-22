@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: notificaciones
+
+  datasource:
+    # createDatabaseIfNotExist: el servicio puede levantarse contra un MySQL
+    # recién creado sin depender de que alguien haya corrido el init.sql antes.
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/notificaciones_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    # Sin SQL en consola: cada notificación consumida generaría ruido que
+    # taparía los logs de RabbitMQ, que son la evidencia que interesa.
+    show-sql: false
+    open-in-view: false
+
+  rabbitmq:
+    # Los 3 nodos del clúster: si el nodo al que está conectado el servicio cae,
+    # el cliente reconecta al siguiente de la lista sin reiniciar el servicio.
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672,localhost:5673,localhost:5674}
+    # random reparte las conexiones de los distintos servicios entre los nodos
+    # en vez de cargar siempre al primero de la lista.
+    address-shuffle-mode: random
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASS:pedidos360}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    connection-timeout: 5s
+    listener:
+      type: simple
+      simple:
+        # auto: Spring confirma (ack) el mensaje cuando el listener termina sin
+        # excepción y lo rechaza si falla. Nunca se pierde un mensaje por un
+        # ack manual olvidado.
+        acknowledge-mode: auto
+        # Un mensaje rechazado NO vuelve a la cola (eso sería un bucle infinito
+        # con un mensaje que nunca se va a poder procesar): va al DLX -> DLQ.
+        default-requeue-rejected: false
+        # Pocos mensajes en vuelo por consumidor: si el servicio se cae, lo que
+        # quedó sin ack se reentrega a otro consumidor y no hay un lote grande
+        # retenido en memoria.
+        prefetch: 10
+        concurrency: 1
+        max-concurrency: 3
+        # Si la cola no existe todavía (el clúster recién levantó), el
+        # contenedor reintenta en vez de tumbar el arranque del servicio.
+        missing-queues-fatal: false
+        # IMPORTANTE: el reintento NO se activa acá (retry.enabled) sino en
+        # Config/RabbitConfig, con una política que distingue errores
+        # transitorios (se reintentan) de payloads inválidos (directo a la DLQ).
+
+app:
+  rabbit:
+    # Nombres y argumentos de la topología: idénticos a los que declara
+    # ms-carrito (PLAN-INTEGRACION-EV3 §9). Si difieren, RabbitMQ rechaza la
+    # redeclaración con PRECONDITION_FAILED.
+    topologia:
+      exchange: pedidos360.notificaciones
+      exchange-dlx: pedidos360.notificaciones.dlx
+      cola-cliente: notificaciones.cliente
+      cola-auditoria: notificaciones.auditoria
+      cola-dlq: notificaciones.cliente.dlq
+      limite-entregas: 5
+    # Reintento stateless en el consumidor (§9): 3 intentos, 1 s, x2.
+    reintentos:
+      max-intentos: 3
+      intervalo-inicial-ms: 1000
+      multiplicador: 2.0
+      intervalo-maximo-ms: 10000
+
+  notificaciones:
+    # Máximo que devuelve GET /api/notificaciones: la campanita de la tienda
+    # sólo muestra las recientes; el resto queda en la base.
+    limite-listado: 50
+
+  sse:
+    # 30 min: después el navegador (EventSource) reconecta solo. Un timeout
+    # infinito acumularía emisores de pestañas cerradas que nunca avisaron.
+    timeout-ms: 1800000
+    # Comentario SSE cada 20 s: mantiene viva la conexión a través de proxies
+    # y load balancers que cortan conexiones inactivas (~60 s).
+    heartbeat-ms: 20000
+
+  cors:
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+
+# -----------------------------------------------------------------------------
+# Actuator: solo health, y solo lo necesario.
+#
+# Se expone unicamente "health" porque el resto de los endpoints (env, beans,
+# configprops, heapdump) filtran configuracion y credenciales sin pedir
+# autenticacion, y aca no hay Spring Security que los cubra.
+# -----------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # El detalle por componente muestra CUAL dependencia esta caida (base,
+      # rabbit) en lugar de un DOWN sin explicacion.
+      show-details: always
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8088}
+
+logging:
+  level:
+    com.pedidos360.notificaciones: INFO
