@@ -7,7 +7,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Configuración centralizada de CORS.
- * 
+ *
  * El CORS es configuración de infraestructura, no lógica de negocio.
  * Se centraliza aquí para mantener separadas las responsabilidades y permitir
  * parametrización sin recompilación. Los orígenes se leen de una propiedad
@@ -16,7 +16,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
-    @Value("${app.cors.origenes-permitidos:http://localhost:8090}")
+    /**
+     * Consola (5173 dev / 8090 docker) y tienda (5174 dev / 8091 docker): la
+     * tienda también llama a /api/pagos/iniciar con origen=TIENDA.
+     */
+    @Value("${app.cors.origenes-permitidos:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}")
     private String origenesCsv;
 
     @Override
@@ -26,10 +30,12 @@ public class CorsConfig implements WebMvcConfigurer {
             origenes[i] = origenes[i].trim();
         }
 
+        // Lista explícita de headers (contrato §3.5): con "*" y credenciales,
+        // cualquier header inventado pasaría el preflight.
         registry.addMapping("/api/**")
                 .allowedOrigins(origenes)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
+                .allowedHeaders("Authorization", "Content-Type", "X-Usuario-Id")
                 .allowCredentials(true)
                 .maxAge(3600);
 
@@ -40,7 +46,7 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/actuator/**")
                 .allowedOrigins(origenes)
                 .allowedMethods("GET", "OPTIONS")
-                .allowedHeaders("*")
+                .allowedHeaders("Authorization", "Content-Type", "X-Usuario-Id")
                 .maxAge(3600);
     }
 }

@@ -14,47 +14,87 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql: true
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
+    # Sin open-in-view: la sesión JPA no queda abierta durante toda la petición
+    # HTTP (incluida la llamada a Transbank) y desaparece el warning de arranque.
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
+        # Los Instant se guardan en UTC: el contenedor y el host pueden estar en
+        # zonas distintas y la ventana de 10 s compara instantes, no horas locales.
+        jdbc:
+          time_zone: UTC
 
   kafka:
     # CORRECCIÓN ERRATA #1: La guía escribía 'SPRING_KAFKA_BOOTSTR_SERVERS' (falta 'AP')
     # con default a IP del docente (54.226.200.212:9092). Acá está CORRECTO:
     # - Variable: SPRING_KAFKA_BOOTSTRAP_SERVERS (completa)
     # - Default: cluster local con 3 brokers
+    #
+    # Es la ÚNICA propiedad spring.kafka.* que se usa: serializadores, acks,
+    # grupos, DLT y reintentos se configuran explícitos en Config/KafkaConfig
+    # (antes había trusted.packages "*", que permitía deserializar cualquier clase).
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-    consumer:
-      group-id: payment-velocity-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
- 
     listener:
+      # Los tópicos los crea infra/kafka/crear-topicos.sh; si todavía no existen
+      # el servicio arranca igual y el listener se suscribe cuando aparezcan.
       missing-topics-fatal: false
-      auto-startup: true
 
 app:
   cors:
-    # Se agrega el 5173 de Vite: es el origen del frontend React en desarrollo.
-    # El 8090 sigue siendo el de la imagen nginx del front.
-    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:8090}
+    # Consola (5173 dev / 8090 docker) y tienda (5174 dev / 8091 docker).
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
 
-  # Donde vive el frontend. ms-pago lo usa para redirigir al navegador con el
-  # resultado del commit; en AWS apunta al dominio real de la consola.
+  # A dónde vuelve el navegador después del commit de Webpay, según el origen
+  # del pago (TIENDA | CONSOLA). Lista cerrada: nunca se redirige a una URL que
+  # venga del cliente. En AWS apuntan a los dominios reales.
   front:
     url: ${FRONT_URL:http://localhost:5173}
+    url-tienda: ${FRONT_URL_TIENDA:http://localhost:5174}
 
   pagos:
     # returnUrl que recibe Transbank: tiene que ser un endpoint de ESTE servicio
     # porque Transbank vuelve con un POST y una SPA estatica no puede leerlo.
+    # ms-pago le agrega ?origen=TIENDA|CONSOLA al crear cada transacción.
     return-url: ${PAGOS_RETURN_URL:http://localhost:8083/api/pagos/commit}
+
+  webpay:
+    # Credenciales públicas del ambiente de INTEGRACIÓN de Transbank.
+    # api-key vacía = la llave de integración que trae el SDK.
+    codigo-comercio: ${WEBPAY_CODIGO_COMERCIO:597055555532}
+    api-key: ${WEBPAY_API_KEY:}
+
+  kafka:
+    topicos:
+      intentos-pago: payment-attempts
+      resultados-pago: pagos-resultado
+      # Sufijo del contrato §2.1 (el de Spring por defecto sería "-dlt").
+      sufijo-dlt: .DLT
+    grupos:
+      antifraude: grupo-antifraude
+      dlt: grupo-dlt-ms-pago
+    concurrencia:
+      # Igual al número de particiones de payment-attempts: un hilo por partición.
+      antifraude: 3
+    reintentos:
+      # §3.4: 1 s, x2, techo 10 s, 3 reintentos y luego DLT.
+      intervalo-inicial-ms: 1000
+      multiplicador: 2.0
+      intervalo-maximo-ms: 10000
+      maximo: 3
+    # Plazo para que el broker confirme el intento antes de responder 503.
+    timeout-confirmacion-segundos: 5
+
+  antifraude:
+    # "Misma tarjeta, más de 3 veces en 10 s" (enunciado): el 4.º intento bloquea.
+    ventana-segundos: 10
+    umbral: 3
+    bloqueo-minutos: ${ANTIFRAUDE_BLOQUEO_MINUTOS:30}
+    pepper: ${ANTIFRAUDE_PEPPER:pedidos360-dev}
+    # intento_tarjeta se purga cada 5 min dejando sólo la última hora.
+    retencion-intentos-minutos: 60
+    limpieza-ms: 300000
 
 # -----------------------------------------------------------------------------
 # Actuator: solo health, y solo lo necesario.

@@ -1,21 +1,19 @@
 package com.kafka.pago.Controller;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.kafka.pago.DTO.ResumenAlertasDTO;
 import com.kafka.pago.Service.AlertasService;
 
+import lombok.RequiredArgsConstructor;
+
 /**
- * Controlador REST para consultar alertas de fraude en tiempo real.
- * Endpoint: GET /api/alertas
- * 
- * Devuelve un resumen estructurado de bloqueos activos y cliente monitoreados
- * para alimentar el dashboard operacional de la tienda.
+ * GET /api/alertas: bloqueos vigentes por huella de tarjeta para el panel de
+ * la consola. La forma de la respuesta no cambia (la consola la lee).
  */
-@Slf4j
 @RestController
 @RequestMapping("/api/alertas")
 @RequiredArgsConstructor
@@ -23,18 +21,8 @@ public class AlertasController {
 
     private final AlertasService alertasService;
 
-    /**
-     * GET /api/alertas
-     * 
-     * Obtiene el resumen actual de alertas de fraude.
-     * Si no hay bloqueos, devuelve estructura con listas vacías y ceros.
-     * 
-     * @return ResumenAlertasDTO con bloqueosActivos, totalClientesVigilados y lista de alertas.
-     */
     @GetMapping
     public ResponseEntity<ResumenAlertasDTO> obtenerAlertas() {
-        log.info("Consultando resumen de alertas de fraude");
-        ResumenAlertasDTO resumen = alertasService.obtenerResumenAlertas();
-        return ResponseEntity.ok(resumen);
+        return ResponseEntity.ok(alertasService.obtenerResumenAlertas());
     }
 }

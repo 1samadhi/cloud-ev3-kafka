@@ -1,72 +1,60 @@
 package com.kafka.pago.Service;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.kafka.pago.DTO.AlertaFraudeDTO;
 import com.kafka.pago.DTO.ResumenAlertasDTO;
-import com.kafka.pago.Model.EstadoPagoCliente;
-import com.kafka.pago.Repository.EstadoPagoClienteRepositorio;
+import com.kafka.pago.Model.BloqueoTarjeta;
+import com.kafka.pago.Repository.BloqueoTarjetaRepositorio;
+import com.kafka.pago.Repository.IntentoTarjetaRepositorio;
 
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * Servicio especializado en la generación de alertas de fraude para el dashboard.
- * 
- * Encapsula la lógica de negocio:
- * - Filtrado de bloqueos vigentes (no expirados)
- * - Cálculo de minutos restantes
- * - Ordenamiento y límite de resultados (máx 20 alertas)
- * - Contadores de estado actual
- * 
- * Criterio de evaluación: mantener la lógica fuera del controlador.
+ * Arma el resumen del panel de alertas. Vive fuera del controlador para que el
+ * controlador sólo traduzca HTTP.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AlertasService {
 
-    private final EstadoPagoClienteRepositorio estadoRepositorio;
+    private final BloqueoTarjetaRepositorio bloqueoRepositorio;
+    private final IntentoTarjetaRepositorio intentoRepositorio;
+    private final ServicioAntifraude servicioAntifraude;
+    private final Clock reloj;
 
-    /**
-     * Obtiene un resumen consolidado de alertas de fraude para el dashboard operacional.
-     * 
-     * @return ResumenAlertasDTO con contadores y lista de alertas activas ordenadas por recencia.
-     */
+    @Transactional(readOnly = true)
     public ResumenAlertasDTO obtenerResumenAlertas() {
-        LocalDateTime ahora = LocalDateTime.now();
-        
-        // 1. Contar bloqueos VIGENTES (bloqueado=true Y bloqueadoHasta > ahora)
-        List<EstadoPagoCliente> bloqueosVigentes = estadoRepositorio.encontrarBloqueoVigentes(ahora);
-        int bloqueosActivos = bloqueosVigentes.size();
-        
-        // 2. Contar total de clientes vigilados (todas las filas de la tabla)
-        long totalClientes = estadoRepositorio.count();
-        
-        // 3. Obtener alertas vigentes (máx 20), ordenadas por recencia
-        List<EstadoPagoCliente> registrosVigentes = estadoRepositorio.encontrarAlertasVigentes(ahora);
-        
-        // 4. Convertir a DTOs calculando minutosRestantes
-        List<AlertaFraudeDTO> alertas = registrosVigentes.stream()
-            .map(registro -> {
-                long minutosRestantes = ChronoUnit.MINUTES.between(ahora, registro.getBloqueadoHasta());
-                return new AlertaFraudeDTO(
-                    registro.getIdCliente(),
-                    registro.getCantidadIntentos(),
-                    registro.getBloqueadoHasta(),
-                    Math.max(0, minutosRestantes), // Garantizar que no sea negativo
-                    registro.getActualizadoEn()
-                );
-            })
-            .collect(Collectors.toList());
-        
-        log.info("Generado resumen de alertas: {} bloqueos activos, {} clientes vigilados, {} alertas vigentes",
-                 bloqueosActivos, totalClientes, alertas.size());
-        
-        return new ResumenAlertasDTO(bloqueosActivos, (int) totalClientes, alertas);
+        Instant ahora = reloj.instant();
+
+        int bloqueosActivos = (int) bloqueoRepositorio.countByBloqueadoHastaAfter(ahora);
+        int vigiladas = (int) intentoRepositorio.contarHuellasDistintas();
+
+        List<AlertaFraudeDTO> alertas = bloqueoRepositorio.findTop20ByBloqueadoHastaAfterOrderByActualizadoEnDesc(ahora)
+                .stream()
+                .map(b -> aDto(b, ahora))
+                .toList();
+
+        log.info("Resumen de alertas: {} bloqueos activos, {} huellas vigiladas, {} alertas listadas",
+                bloqueosActivos, vigiladas, alertas.size());
+        return new ResumenAlertasDTO(bloqueosActivos, vigiladas, alertas);
+    }
+
+    private AlertaFraudeDTO aDto(BloqueoTarjeta b, Instant ahora) {
+        return new AlertaFraudeDTO(
+                b.getIdCliente(),
+                b.getIntentos(),
+                servicioAntifraude.aHoraLocal(b.getBloqueadoHasta()),
+                ServicioAntifraude.minutosRestantes(ahora, b.getBloqueadoHasta()),
+                servicioAntifraude.aHoraLocal(b.getActualizadoEn()),
+                HuellaTarjeta.abreviar(b.getHuella()),
+                b.getUltimos4());
     }
 }
