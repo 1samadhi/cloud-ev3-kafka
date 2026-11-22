@@ -1,0 +1,5 @@
+# Los scripts corren dentro de contenedores Linux: con CRLF, bash falla con
+# ": command not found". En Windows git convierte a CRLF si no se lo impide.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf
