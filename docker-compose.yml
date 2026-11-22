@@ -2,32 +2,33 @@
 #  Pedidos360 — stack completo con un comando
 #  DSY1107 · Evaluación 3
 #
+#      cp .env.example .env        (una vez; ajustar CONSOLA_DIR / TIENDA_DIR)
 #      docker compose up -d --build
 #
 #  Levanta, en este orden y esperando a que cada capa este SANA:
 #
-#      zookeeper1..3  ->  kafka1..3  ->  creacion de topicos  ->  microservicios
-#      mysql          ->  ms-pago / ms-recomendaciones
-#      microservicios ->  consola (frontend)
+#      zookeeper1..3 -> kafka1..3 -> crear-topicos ─┐
+#      rabbitmq1 -> rabbitmq2, rabbitmq3 ───────────┼-> microservicios -> tienda / consola
+#      mysql, dynamodb-local ───────────────────────┘
 #
-#  Por que un compose en la raiz y no los dos que ya existian: infra/ levantaba
-#  el cluster y ms-pago/ levantaba MySQL, pero los tres microservicios y el
-#  frontend quedaban a mano (tres mvn package, tres java -jar y un contenedor
-#  aparte). Para demostrar el sistema hay que poder levantarlo entero sin una
-#  secuencia de pasos que se pueda ejecutar mal.
+#  Tres canales, cada uno para lo que sirve (ver PLAN-INTEGRACION-EV3.md §1):
+#    REST      comandos transaccionales (reservar stock, crear pedido)
+#    RabbitMQ  notificaciones al cliente, entrega por mensaje con DLQ
+#    Kafka     log de eventos analiticos con replay y fan-out
 #
-#  infra/docker-compose.yml SIGUE SIRVIENDO para trabajar solo el cluster.
-#  Este archivo es el camino de la demostracion completa.
+#  infra/docker-compose.yml (Kafka) e infra/rabbitmq/docker-compose.yml (cluster
+#  RabbitMQ) SIGUEN SIRVIENDO para levantar cada broker solo. Este archivo es el
+#  camino de la demostracion completa.
 #
-#  Variables (ver .env.example):
-#      KAFKA_HOST   host que los brokers ANUNCIAN a los clientes del host
-#      MYSQL_PASS   clave de root de MySQL
+#  MEMORIA: son 22 contenedores (~8-9 GB). Docker Desktop sobre WSL2 usa por
+#  defecto la mitad de la RAM del equipo; con 16 GB conviene subirlo en
+#  %UserProfile%\.wslconfig  ->  [wsl2]  memory=11GB
 # =============================================================================
 
 x-kafka-common: &kafka-common
   image: confluentinc/cp-kafka:7.5.0
-  # 512 MB por broker: 3 brokers + 3 zookeeper + 3 JVM de Spring + MySQL tienen
-  # que convivir en un notebook. El default de la imagen es 1 GB por JVM.
+  # 512 MB por broker: todo el sistema tiene que convivir en un notebook. El
+  # default de la imagen es 1 GB por JVM.
   environment: &kafka-env
     KAFKA_ZOOKEEPER_CONNECT: "zookeeper1:2181,zookeeper2:2181,zookeeper3:2181"
     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "INTERNO:PLAINTEXT,EXTERNO:PLAINTEXT"
@@ -40,9 +41,9 @@ x-kafka-common: &kafka-common
     KAFKA_DEFAULT_REPLICATION_FACTOR: 3
     KAFKA_MIN_INSYNC_REPLICAS: 2          # tolera la caida de 1 broker sin perder escrituras
     KAFKA_NUM_PARTITIONS: 3
-    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # los topicos se crean explicitamente
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # los topicos se crean explicitamente (crear-topicos)
     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-    # --- Retencion y limpieza, explicitas (lo pide la rubrica) ---
+    # --- Defaults del broker; cada topico los sobreescribe segun su flujo ---
     KAFKA_LOG_RETENTION_HOURS: 168        # 7 dias
     KAFKA_LOG_RETENTION_BYTES: 1073741824 # 1 GB por particion
     KAFKA_LOG_CLEANUP_POLICY: "delete"
@@ -79,19 +80,48 @@ x-zk-common: &zk-common
   restart: unless-stopped
   networks: [pedidos360]
 
-# Variables comunes a los microservicios que hablan con Kafka y MySQL.
+x-rabbitmq-common: &rabbitmq-common
+  image: rabbitmq:3.13-management-alpine
+  environment:
+    # La cookie es la credencial con la que los nodos Erlang se aceptan entre
+    # si: tiene que ser IDENTICA en los tres o no forman cluster.
+    RABBITMQ_ERLANG_COOKIE: "${RABBITMQ_ERLANG_COOKIE:-pedidos360-cookie-dev}"
+    RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:-pedidos360}"
+    RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASS:-pedidos360}"
+  healthcheck:
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+    interval: 10s
+    timeout: 10s
+    retries: 12
+    start_period: 30s
+  mem_limit: 512m
+  restart: unless-stopped
+  networks: [pedidos360]
+
+# Variables comunes a TODOS los microservicios Spring.
 x-spring-env: &spring-env
   # Entre contenedores se usa el listener INTERNO: kafka1:29092. El 9092 del
   # host no existe dentro de la red de Docker.
   SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka1:29092,kafka2:29092,kafka3:29092"
-  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-db:3306/pagos_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
   SPRING_DATASOURCE_USERNAME: "root"
   SPRING_DATASOURCE_PASSWORD: "${MYSQL_PASS:-123456}"
   SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
-  # Origen del frontend servido por nginx en este mismo compose. El CORS declara
-  # la ruta concreta y no un comodin, asi que cambiar el puerto publicado del
-  # front obliga a cambiar esta variable.
-  CORS_ORIGENES: "http://localhost:8090,http://localhost:5173"
+  SPRING_JPA_SHOW_SQL: "false"
+  # Los cuatro origenes desde los que un navegador llama a la API: consola y
+  # tienda, en dev (Vite) y en Docker (nginx). El CORS declara rutas concretas y
+  # no un comodin, asi que cambiar un puerto publicado obliga a cambiar esto.
+  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091"
+  # La JVM respeta el mem_limit del contenedor en vez de calcular su heap sobre
+  # la RAM del host (que en un contenedor no le pertenece).
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+  RABBITMQ_ADDRESSES: "rabbitmq1:5672,rabbitmq2:5672,rabbitmq3:5672"
+  RABBITMQ_USER: "${RABBITMQ_USER:-pedidos360}"
+  RABBITMQ_PASS: "${RABBITMQ_PASS:-pedidos360}"
+
+x-ms-common: &ms-common
+  mem_limit: 512m
+  restart: unless-stopped
+  networks: [pedidos360]
 
 services:
   # ------------------------------------------------------------ Zookeeper
@@ -178,12 +208,10 @@ services:
       - kafka3_data:/var/lib/kafka/data
 
   # ------------------------------------------------------- Creacion de topicos
-  # Contenedor de un solo uso. Los topicos se crean aca y no con
-  # auto.create.topics porque la rubrica pide particiones, factor de
-  # replicacion, retencion y min.insync.replicas EXPLICITOS, y la creacion
-  # automatica los haria con los defaults del broker.
-  #
-  # --if-not-exists lo vuelve idempotente: `compose up` dos veces no falla.
+  # Contenedor de un solo uso que corre infra/kafka/crear-topicos.sh: los 4
+  # topicos y sus 4 DLT con configuracion DISTINTA por flujo (particiones,
+  # retencion, cleanup) y el porque de cada valor comentado en el script. No se
+  # usa auto.create.topics porque crearia todo con los defaults del broker.
   crear-topicos:
     image: confluentinc/cp-kafka:7.5.0
     container_name: crear-topicos
@@ -191,22 +219,13 @@ services:
       kafka1: { condition: service_healthy }
       kafka2: { condition: service_healthy }
       kafka3: { condition: service_healthy }
+    environment:
+      BOOTSTRAP: "kafka1:29092"
+    volumes:
+      - ./infra/kafka:/scripts:ro
+    command: ["bash", "/scripts/crear-topicos.sh"]
     networks: [pedidos360]
     restart: "no"
-    command: >
-      bash -c '
-      set -e;
-      for t in payment-attempts interacciones-user; do
-        kafka-topics --bootstrap-server kafka1:29092 --create --if-not-exists
-          --topic "$$t" --partitions 3 --replication-factor 3
-          --config retention.ms=604800000
-          --config cleanup.policy=delete
-          --config min.insync.replicas=2
-          --config segment.bytes=268435456;
-      done;
-      echo "--- topicos del cluster ---";
-      kafka-topics --bootstrap-server kafka1:29092 --list;
-      '
 
   # -------------------------------------------------------------- Kafka UI
   kafka-ui:
@@ -225,10 +244,49 @@ services:
     restart: unless-stopped
     networks: [pedidos360]
 
+  # ------------------------------------------------------- Cluster RabbitMQ
+  # 3 nodos con descubrimiento classic_config (infra/rabbitmq/rabbitmq.conf).
+  # Las colas son quorum: replicadas por Raft en los 3 nodos, siguen aceptando
+  # mensajes con uno caido. rabbitmq2 y 3 esperan a rabbitmq1 para que el
+  # cluster se forme alrededor de un nodo ya arriba.
+  rabbitmq1:
+    <<: *rabbitmq-common
+    container_name: rabbitmq1
+    hostname: rabbitmq1
+    ports: ["5672:5672", "15672:15672"]
+    volumes:
+      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq1_data:/var/lib/rabbitmq
+
+  rabbitmq2:
+    <<: *rabbitmq-common
+    container_name: rabbitmq2
+    hostname: rabbitmq2
+    ports: ["5673:5672", "15673:15672"]
+    volumes:
+      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq2_data:/var/lib/rabbitmq
+    depends_on:
+      rabbitmq1: { condition: service_healthy }
+
+  rabbitmq3:
+    <<: *rabbitmq-common
+    container_name: rabbitmq3
+    hostname: rabbitmq3
+    ports: ["5674:5672", "15674:15672"]
+    volumes:
+      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - rabbitmq3_data:/var/lib/rabbitmq
+    depends_on:
+      rabbitmq1: { condition: service_healthy }
+
   # ----------------------------------------------------------------- MySQL
+  # Una instancia, una base por microservicio (pagos_db, productos_db,
+  # carrito_db, notificaciones_db): ningun servicio lee tablas de otro. Las
+  # bases las crea cada servicio con createDatabaseIfNotExist.
   mysql-db:
     image: mysql:8.0
-    container_name: mysql-pagos-db
+    container_name: mysql-pedidos360
     environment:
       MYSQL_DATABASE: pagos_db
       MYSQL_ROOT_PASSWORD: "${MYSQL_PASS:-123456}"
@@ -244,70 +302,170 @@ services:
     restart: unless-stopped
     networks: [pedidos360]
 
+  # -------------------------------------------------------- DynamoDB Local
+  # Sustituto local de DynamoDB para desarrollo. En el Learner Lab
+  # ms-recomendaciones apunta al DynamoDB real con DYNAMODB_ENDPOINT vacio.
+  # -inMemory: los datos se pierden al reiniciar, a proposito (con un volumen la
+  # imagen falla por permisos del usuario dynamodblocal sobre el directorio).
+  dynamodb-local:
+    image: amazon/dynamodb-local:2.5.3
+    container_name: dynamodb-local
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports: ["8000:8000"]
+    restart: unless-stopped
+    networks: [pedidos360]
+
   # -------------------------------------------------------- Microservicios
   ms-pago:
-    build:
-      context: ./ms-pago
+    <<: *ms-common
+    build: { context: ./ms-pago }
     container_name: ms-pago
     ports: ["8083:8083"]
     environment:
       <<: *spring-env
       SERVER_PORT: 8083
-      # El returnUrl lo abre el NAVEGADOR, no otro contenedor: tiene que ser una
-      # direccion alcanzable desde el host, no el nombre del servicio en Docker.
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-db:3306/pagos_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      ANTIFRAUDE_PEPPER: "${ANTIFRAUDE_PEPPER:-pedidos360-dev}"
+      # El returnUrl y los FRONT_URL los abre el NAVEGADOR, no otro contenedor:
+      # tienen que ser direcciones alcanzables desde el host.
       PAGOS_RETURN_URL: "http://localhost:8083/api/pagos/commit"
       FRONT_URL: "http://localhost:8090"
+      FRONT_URL_TIENDA: "http://localhost:8091"
     depends_on:
       mysql-db: { condition: service_healthy }
       crear-topicos: { condition: service_completed_successfully }
-    restart: unless-stopped
-    networks: [pedidos360]
 
   ms-recomendaciones:
-    build:
-      context: ./ms-recomendaciones
+    <<: *ms-common
+    build: { context: ./ms-recomendaciones }
     container_name: ms-recomendaciones
     ports: ["8084:8084"]
     environment:
       <<: *spring-env
       SERVER_PORT: 8084
+      # Sin ":" a proposito: si .env define DYNAMODB_ENDPOINT VACIO (Learner Lab),
+      # se respeta el vacio y el SDK va al DynamoDB real de AWS.
+      DYNAMODB_ENDPOINT: "${DYNAMODB_ENDPOINT-http://dynamodb-local:8000}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+      # DynamoDB Local acepta cualquier credencial, pero el SDK exige alguna.
+      # En el Learner Lab se reemplazan por las temporales (con SESSION_TOKEN).
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-local}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY:-local}"
+      AWS_SESSION_TOKEN: "${AWS_SESSION_TOKEN:-}"
+      DYNAMODB_PUBLICAR_OPERACIONES: "${DYNAMODB_PUBLICAR_OPERACIONES:-false}"
     depends_on:
-      mysql-db: { condition: service_healthy }
+      dynamodb-local: { condition: service_started }
       crear-topicos: { condition: service_completed_successfully }
-    restart: unless-stopped
-    networks: [pedidos360]
 
   ms-kafka-admin:
-    build:
-      context: ./ms-kafka-admin
+    <<: *ms-common
+    build: { context: ./ms-kafka-admin }
     container_name: ms-kafka-admin
     ports: ["8085:8085"]
     environment:
-      # No usa MySQL: solo necesita los brokers y el origen del frontend.
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka1:29092,kafka2:29092,kafka3:29092"
-      CORS_ORIGENES: "http://localhost:8090,http://localhost:5173"
+      <<: *spring-env
       SERVER_PORT: 8085
     depends_on:
       crear-topicos: { condition: service_completed_successfully }
+
+  ms-productos:
+    <<: *ms-common
+    build: { context: ./ms-productos }
+    container_name: ms-productos
+    ports: ["8086:8086"]
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8086
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-db:3306/productos_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      crear-topicos: { condition: service_completed_successfully }
+
+  ms-carrito:
+    <<: *ms-common
+    build: { context: ./ms-carrito }
+    container_name: ms-carrito
+    ports: ["8087:8087"]
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8087
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-db:3306/carrito_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      # Servidor a servidor: aca SI va el nombre del servicio en Docker.
+      PRODUCTOS_URL: "http://ms-productos:8086"
+      ENVIOS_AVANCE_MS: "${ENVIOS_AVANCE_MS:-20000}"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      crear-topicos: { condition: service_completed_successfully }
+      rabbitmq1: { condition: service_healthy }
+      rabbitmq2: { condition: service_healthy }
+      rabbitmq3: { condition: service_healthy }
+      ms-productos: { condition: service_healthy }
+
+  ms-notificaciones:
+    <<: *ms-common
+    build: { context: ./ms-notificaciones }
+    container_name: ms-notificaciones
+    ports: ["8088:8088"]
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8088
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql-db:3306/notificaciones_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    depends_on:
+      mysql-db: { condition: service_healthy }
+      rabbitmq1: { condition: service_healthy }
+      rabbitmq2: { condition: service_healthy }
+      rabbitmq3: { condition: service_healthy }
+
+  ms-rabbit-admin:
+    <<: *ms-common
+    build: { context: ./ms-rabbit-admin }
+    container_name: ms-rabbit-admin
+    ports: ["8089:8089"]
+    environment:
+      <<: *spring-env
+      SERVER_PORT: 8089
+      # Lista con failover: si rabbitmq1 cae, el listado sigue por los otros.
+      RABBITMQ_MGMT_URL: "http://rabbitmq1:15672,http://rabbitmq2:15672,http://rabbitmq3:15672"
+    depends_on:
+      rabbitmq1: { condition: service_healthy }
+      rabbitmq2: { condition: service_healthy }
+      rabbitmq3: { condition: service_healthy }
+
+  # -------------------------------------------------------------- Frontends
+  # Son repositorios aparte, clonados AL LADO de este. La ruta se configura en
+  # .env (CONSOLA_DIR / TIENDA_DIR) porque cada uno los clona con su nombre.
+  # Las URL las consume el NAVEGADOR: van con localhost y el puerto publicado,
+  # nunca con el nombre del servicio de Docker.
+  tienda:
+    build: { context: "${TIENDA_DIR:-../pedidos360-tienda}" }
+    container_name: tienda
+    ports: ["8091:80"]
+    environment:
+      API_PRODUCTOS: "http://localhost:8086"
+      API_CARRITO: "http://localhost:8087"
+      API_PAGOS: "http://localhost:8083"
+      API_RECOMENDACIONES: "http://localhost:8084"
+      API_NOTIFICACIONES: "http://localhost:8088"
+    depends_on:
+      ms-productos: { condition: service_healthy }
+      ms-carrito: { condition: service_healthy }
+      ms-pago: { condition: service_healthy }
     restart: unless-stopped
     networks: [pedidos360]
 
-  # -------------------------------------------------------------- Frontend
-  # El contexto apunta al repo del frontend, que es un repositorio aparte y se
-  # espera clonado AL LADO de este. Si no esta, comentar este servicio: el
-  # backend levanta igual y la consola se puede correr con `npm run dev`.
   consola:
-    build:
-      context: ../cloud-ev3-front
+    build: { context: "${CONSOLA_DIR:-../cloud-ev3-front}" }
     container_name: consola
     ports: ["8090:80"]
     environment:
-      # Las URL las consume el NAVEGADOR, asi que van con localhost y el puerto
-      # publicado, nunca con el nombre del servicio de Docker.
       API_PAGOS: "http://localhost:8083"
       API_RECOMENDACIONES: "http://localhost:8084"
       API_ADMIN: "http://localhost:8085"
-      WS_URL: "${WS_URL:-}"
+      API_PRODUCTOS: "http://localhost:8086"
+      API_RABBIT: "http://localhost:8089"
+      # Por defecto, el WebSocket local de ms-recomendaciones. En AWS, el wss://
+      # del API Gateway que alimenta la Lambda.
+      WS_URL: "${WS_URL:-ws://localhost:8084/ws/metricas}"
     depends_on:
       ms-pago: { condition: service_healthy }
       ms-recomendaciones: { condition: service_healthy }
@@ -329,4 +487,7 @@ volumes:
   kafka1_data: {}
   kafka2_data: {}
   kafka3_data: {}
+  rabbitmq1_data: {}
+  rabbitmq2_data: {}
+  rabbitmq3_data: {}
   mysql_data: {}
