@@ -532,14 +532,60 @@ Se mantiene todo lo que existe. Se agrega (cada uno con validación y `@RestCont
   sin `?forzar=true`.
 - Tests: `@WebMvcTest` (validaciones/códigos) y service con `AmqpAdmin`/`RestClient` mockeados.
 
-## 12. Fase 4 — Cognito + JWT (después de que todo lo anterior funcione)
+## 12. Fase 4 — Cognito + JWT (contrato compartido por backend, tienda, consola y Terraform)
 
-- User pool con grupos `admin` y `cliente`, app client público con PKCE y Hosted UI.
-- Cada servicio: `spring-boot-starter-oauth2-resource-server`, `issuer-uri` del pool,
-  conversor que mapea `cognito:groups` a `ROLE_*`, `UsuarioActual` lee `sub` del JWT. Rutas
-  públicas: catálogo, actuator/health, commit de Webpay, stream SSE (token por query).
-  `app.seguridad.habilitada` (default `false` hasta tener el pool) — con log WARN visible.
-- Tienda: login con Hosted UI (Authorization Code + PKCE), `Authorization: Bearer` en las llamadas.
+**Pool** (Terraform, `infra/terraform-telemetria/` o carpeta hermana): grupos `admin` y `cliente`;
+login por email; app client **público** (sin secreto), OAuth *authorization code* + **PKCE**,
+scopes `openid email profile`; dominio de Hosted UI; callback URLs
+`http://localhost:{5173,5174,8090,8091}/auth/callback`, logout URLs = esos cuatro orígenes.
+Usuarios semilla: `ana@correo.cl` (cliente) y `admin@pedidos360.cl` (admin) con clave temporal.
+
+**Qué token viaja y qué identidad sale de él** (decisión, aplicar igual en todas partes):
+- El front envía el **ID token** como `Authorization: Bearer <id_token>`: es el que trae `email`
+  y `cognito:groups`. El access token de Cognito no trae `email`.
+- `usuarioId` = claim `email` (coincide con las cuentas demo y con los datos ya generados).
+- Roles: `cognito:groups` → `ROLE_ADMIN` / `ROLE_CLIENTE`.
+- `EventSource` (SSE) no manda headers: **sólo** en `GET /api/notificaciones/stream` el token
+  se acepta por query `?access_token=` (BearerTokenResolver con `allowUriQueryParameter` limitado
+  a esa ruta).
+
+**Backend** (los 7 servicios): `spring-boot-starter-oauth2-resource-server`.
+- `app.seguridad.habilitada` = `${SEGURIDAD_HABILITADA:false}`. Con `false` todo queda permitido
+  como hoy y se loguea **WARN** al arrancar ("seguridad deshabilitada"). Con `true`:
+- Decoder con **`jwk-set-uri`** `https://cognito-idp.${COGNITO_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/jwks.json`
+  (no `issuer-uri`: ese descarga la discovery al arrancar y el servicio no levanta sin red) +
+  validadores: firma, expiración, `iss` = `https://cognito-idp.<region>.amazonaws.com/<pool>`,
+  `aud` = `${COGNITO_CLIENT_ID}`, `token_use` = `id`.
+- `UsuarioActual` (una sola clase por servicio): con seguridad, `email` del JWT e **ignora**
+  `X-Usuario-Id`; sin seguridad, `X-Usuario-Id` como hoy.
+- Reglas:
+  - **Públicas**: `OPTIONS /**`, `/actuator/health`, `GET /api/productos/**` (salvo `/admin/**`),
+    `GET /api/carrito/sucursales`, `/api/pagos/commit` (lo llama Transbank), `GET /api/metricas`,
+    `/ws/metricas`, `POST /api/productos/stock/reservas|liberaciones` (servidor a servidor desde
+    ms-carrito, incluso desde su consumidor Kafka, sin usuario; en AWS se protege por red — dejarlo
+    comentado y documentado).
+  - **ADMIN**: `/api/admin/**`, `/api/productos/admin/**`, `PUT /api/productos/*/stock`,
+    `GET /api/alertas`, `GET /api/notificaciones/fallidas`, todo ms-kafka-admin y ms-rabbit-admin.
+  - **Autenticado** (cualquier grupo): el resto (carrito, pedidos, `POST /api/pagos/iniciar`,
+    recomendaciones, interacciones, notificaciones).
+  - 401/403 con el mismo JSON de error del servicio, y CORS antes que seguridad (el preflight no
+    lleva token).
+- Variables: `SEGURIDAD_HABILITADA`, `COGNITO_REGION`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`.
+- Tests: con un JWT firmado por una clave RSA de prueba (decoder de test con la clave pública):
+  sin token 401, token de cliente en ruta admin 403, token válido 200, `aud`/`iss` errados 401,
+  `UsuarioActual` toma el email del token aunque venga otro `X-Usuario-Id`. Con
+  `SEGURIDAD_HABILITADA=false` los tests existentes siguen verdes sin cambios.
+
+**Frontends** (tienda y consola): config de runtime `COGNITO_DOMAIN`
+(`https://<prefijo>.auth.<region>.amazoncognito.com`), `COGNITO_CLIENT_ID`, `COGNITO_REGION`.
+- Si `COGNITO_DOMAIN` está vacío → login demo actual, con un aviso visible "modo demo sin Cognito".
+- Si está → Hosted UI con authorization code + PKCE (sin librerías pesadas: `crypto.subtle`
+  para el challenge, `fetch` al `/oauth2/token`), ruta `/auth/callback`, tokens en
+  `sessionStorage`, logout por `/logout?client_id=…&logout_uri=…`, renovación con refresh token
+  o re-login al expirar. Grupos desde el ID token para mostrar/ocultar admin.
+- Todas las llamadas llevan `Authorization: Bearer <id_token>` (y siguen mandando
+  `X-Usuario-Id` por compatibilidad con el backend sin seguridad).
+- La consola exige grupo `admin` cuando Cognito está configurado.
 
 ## 13. Infra y compose (lo integra el agente principal, no los subagentes)
 
