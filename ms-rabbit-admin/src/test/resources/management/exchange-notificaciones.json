@@ -1,0 +1,20 @@
+{
+  "arguments": {},
+  "auto_delete": false,
+  "durable": true,
+  "internal": false,
+  "message_stats": {
+    "publish_in": 45,
+    "publish_in_details": {
+      "rate": 0.2
+    },
+    "publish_out": 90,
+    "publish_out_details": {
+      "rate": 0.4
+    }
+  },
+  "name": "pedidos360.notificaciones",
+  "type": "topic",
+  "user_who_performed_action": "pedidos360",
+  "vhost": "/"
+}

@@ -1,0 +1,58 @@
+[
+  {
+    "source": "",
+    "vhost": "/",
+    "destination": "notificaciones.cliente",
+    "destination_type": "queue",
+    "routing_key": "notificaciones.cliente",
+    "arguments": {},
+    "properties_key": "notificaciones.cliente"
+  },
+  {
+    "source": "",
+    "vhost": "/",
+    "destination": "prueba.classic",
+    "destination_type": "queue",
+    "routing_key": "prueba.classic",
+    "arguments": {},
+    "properties_key": "prueba.classic"
+  },
+  {
+    "source": "pedidos360.notificaciones",
+    "vhost": "/",
+    "destination": "notificaciones.auditoria",
+    "destination_type": "queue",
+    "routing_key": "#",
+    "arguments": {},
+    "properties_key": "%23"
+  },
+  {
+    "source": "pedidos360.notificaciones",
+    "vhost": "/",
+    "destination": "notificaciones.cliente",
+    "destination_type": "queue",
+    "routing_key": "pedido.*",
+    "arguments": {},
+    "properties_key": "pedido.*"
+  },
+  {
+    "source": "pedidos360.notificaciones",
+    "vhost": "/",
+    "destination": "notificaciones.cliente",
+    "destination_type": "queue",
+    "routing_key": "carrito.*",
+    "arguments": {},
+    "properties_key": "carrito.*"
+  },
+  {
+    "source": "amq.topic",
+    "vhost": "/",
+    "destination": "prueba.classic",
+    "destination_type": "queue",
+    "routing_key": "prueba.#",
+    "arguments": {
+      "x-origen": "consola"
+    },
+    "properties_key": "prueba.%23~Kd2KzA"
+  }
+]

@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: rabbit-admin
+
+  rabbitmq:
+    # Los 3 nodos: AmqpAdmin declara/borra por AMQP y, si el nodo al que está
+    # conectado cae, el cliente reconecta al siguiente sin reiniciar el servicio.
+    # Da igual a qué nodo se conecte: exchanges, bindings y la definición de las
+    # colas se replican en todo el clúster.
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672,localhost:5673,localhost:5674}
+    address-shuffle-mode: random
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASS:pedidos360}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    # Corto: si un nodo no existe, mejor pasar rápido al siguiente de la lista.
+    connection-timeout: 5s
+    # Este servicio no consume ni publica mensajes: no hay listeners ni
+    # RabbitTemplate propio. RabbitAdmin abre la conexión recién en la primera
+    # operación, así que el servicio arranca aunque el clúster esté abajo.
+
+app:
+  rabbit:
+    management:
+      # Lista separada por comas, una URL por nodo, en orden de preferencia: si
+      # un nodo está caído se consulta el siguiente (ver ClienteManagementRabbit).
+      # En el compose: http://rabbitmq1:15672,http://rabbitmq2:15672,http://rabbitmq3:15672
+      urls: ${RABBITMQ_MGMT_URL:http://localhost:15672,http://localhost:15673,http://localhost:15674}
+      usuario: ${RABBITMQ_USER:pedidos360}
+      clave: ${RABBITMQ_PASS:pedidos360}
+      vhost: ${RABBITMQ_VHOST:/}
+      timeout-conexion: 2s
+      timeout-lectura: 5s
+    proteccion:
+      # Topología de PLAN-INTEGRACION-EV3 §9: borrarla corta las notificaciones,
+      # así que exige ?forzar=true. Los amq.* se protegen siempre (regla del broker).
+      sistema:
+        - pedidos360.notificaciones
+        - pedidos360.notificaciones.dlx
+        - notificaciones.cliente
+        - notificaciones.auditoria
+        - notificaciones.cliente.dlq
+
+  cors:
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+
+# -----------------------------------------------------------------------------
+# Actuator: solo health, y solo lo necesario.
+#
+# Se expone unicamente "health" porque el resto de los endpoints (env, beans,
+# configprops, heapdump) filtran configuracion y credenciales sin pedir
+# autenticacion, y aca no hay Spring Security que los cubra.
+# -----------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # El detalle por componente muestra si el que falla es RabbitMQ.
+      show-details: always
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8089}
+
+logging:
+  level:
+    com.pedidos360.rabbitadmin: INFO

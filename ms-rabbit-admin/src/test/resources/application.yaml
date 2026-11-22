@@ -1,0 +1,20 @@
+# Perfil de pruebas: SIN Docker y SIN RabbitMQ real.
+# AmqpAdmin se mockea en los tests de servicio y la API de management se simula
+# con MockRestServiceServer. El contexto completo arranca igual porque la
+# conexión AMQP es perezosa y nadie la usa.
+spring:
+  rabbitmq:
+    addresses: localhost:5672
+
+app:
+  rabbit:
+    management:
+      urls: http://rabbit-test-1:15672,http://rabbit-test-2:15672
+      usuario: pedidos360
+      clave: pedidos360
+
+management:
+  health:
+    # Que nadie intente conectarse a un broker inexistente desde un test.
+    rabbit:
+      enabled: false
