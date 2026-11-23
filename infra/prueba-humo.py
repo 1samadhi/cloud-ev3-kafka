@@ -91,7 +91,13 @@ print(f"Usuario de la prueba: {USUARIO}\n")
 
 print("1. Catálogo (ms-productos)")
 st, productos = llamar("GET", f"{PRODUCTOS}/api/productos")
-comprobar("lista de productos", st == 200 and len(productos) == 20, f"{len(productos) if st == 200 else st} productos")
+if st != 200:
+    # Sin catálogo no hay nada que recorrer: se corta con un mensaje claro en vez
+    # de arrastrar el error a los pasos siguientes.
+    print(f"  [FALLA] ms-productos no responde ({productos}).")
+    print("\nEl sistema no está levantado: docker compose up -d y reintentar.")
+    sys.exit(1)
+comprobar("lista de productos", len(productos) == 20, f"{len(productos)} productos")
 st, cats = llamar("GET", f"{PRODUCTOS}/api/productos/categorias")
 comprobar("8 categorías", st == 200 and len(cats) == 8, f"{[c.get('slug') for c in cats] if st == 200 else st}")
 stock_antes = next(p["stock"] for p in productos if p["id"] == "item_107")
