@@ -1,0 +1,260 @@
+[
+  {
+    "arguments": {
+      "x-dead-letter-exchange": "pedidos360.notificaciones.dlx",
+      "x-dead-letter-strategy": "at-least-once",
+      "x-delivery-limit": 5,
+      "x-overflow": "reject-publish",
+      "x-queue-type": "quorum"
+    },
+    "auto_delete": false,
+    "consumer_capacity": 1.0,
+    "consumer_utilisation": 1.0,
+    "consumers": 1,
+    "durable": true,
+    "effective_policy_definition": {},
+    "exclusive": false,
+    "garbage_collection": {
+      "fullsweep_after": 65535,
+      "max_heap_size": 0,
+      "min_bin_vheap_size": 46422,
+      "min_heap_size": 233,
+      "minor_gcs": 12
+    },
+    "leader": "rabbit@rabbitmq2",
+    "members": [
+      "rabbit@rabbitmq2",
+      "rabbit@rabbitmq1",
+      "rabbit@rabbitmq3"
+    ],
+    "memory": 143792,
+    "message_bytes": 1260,
+    "message_bytes_dlx": 0,
+    "message_bytes_persistent": 1260,
+    "message_bytes_ram": 1260,
+    "message_bytes_ready": 840,
+    "message_bytes_unacknowledged": 420,
+    "message_stats": {
+      "ack": 42,
+      "ack_details": {
+        "rate": 0.0
+      },
+      "deliver": 43,
+      "deliver_details": {
+        "rate": 0.0
+      },
+      "deliver_get": 43,
+      "deliver_get_details": {
+        "rate": 0.0
+      },
+      "publish": 45,
+      "publish_details": {
+        "rate": 0.2
+      },
+      "redeliver": 1,
+      "redeliver_details": {
+        "rate": 0.0
+      }
+    },
+    "messages": 3,
+    "messages_details": {
+      "rate": 0.0
+    },
+    "messages_dlx": 0,
+    "messages_persistent": 3,
+    "messages_ram": 3,
+    "messages_ready": 2,
+    "messages_ready_details": {
+      "rate": 0.0
+    },
+    "messages_unacknowledged": 1,
+    "messages_unacknowledged_details": {
+      "rate": 0.0
+    },
+    "name": "notificaciones.cliente",
+    "node": "rabbit@rabbitmq2",
+    "online": [
+      "rabbit@rabbitmq2",
+      "rabbit@rabbitmq1",
+      "rabbit@rabbitmq3"
+    ],
+    "open_files": {
+      "rabbit@rabbitmq1": 0,
+      "rabbit@rabbitmq2": 0,
+      "rabbit@rabbitmq3": 0
+    },
+    "operator_policy": null,
+    "policy": null,
+    "reductions": 284731,
+    "reductions_details": {
+      "rate": 512.4
+    },
+    "single_active_consumer_tag": null,
+    "state": "running",
+    "type": "quorum",
+    "vhost": "/"
+  },
+  {
+    "arguments": {
+      "x-queue-type": "quorum"
+    },
+    "auto_delete": false,
+    "consumer_capacity": 0,
+    "consumer_utilisation": 0,
+    "consumers": 0,
+    "durable": true,
+    "effective_policy_definition": {},
+    "exclusive": false,
+    "garbage_collection": {
+      "fullsweep_after": 65535,
+      "max_heap_size": 0,
+      "min_bin_vheap_size": 46422,
+      "min_heap_size": 233,
+      "minor_gcs": 12
+    },
+    "leader": "rabbit@rabbitmq1",
+    "members": [
+      "rabbit@rabbitmq1",
+      "rabbit@rabbitmq3",
+      "rabbit@rabbitmq2"
+    ],
+    "memory": 98232,
+    "message_bytes": 0,
+    "message_bytes_dlx": 0,
+    "message_bytes_persistent": 0,
+    "message_bytes_ram": 0,
+    "message_bytes_ready": 0,
+    "message_bytes_unacknowledged": 0,
+    "messages": 0,
+    "messages_details": {
+      "rate": 0.0
+    },
+    "messages_dlx": 0,
+    "messages_persistent": 0,
+    "messages_ram": 0,
+    "messages_ready": 0,
+    "messages_ready_details": {
+      "rate": 0.0
+    },
+    "messages_unacknowledged": 0,
+    "messages_unacknowledged_details": {
+      "rate": 0.0
+    },
+    "name": "notificaciones.auditoria",
+    "node": "rabbit@rabbitmq1",
+    "online": [
+      "rabbit@rabbitmq1",
+      "rabbit@rabbitmq2"
+    ],
+    "open_files": {
+      "rabbit@rabbitmq1": 0,
+      "rabbit@rabbitmq2": 0
+    },
+    "operator_policy": null,
+    "policy": null,
+    "reductions": 81234,
+    "reductions_details": {
+      "rate": 0.0
+    },
+    "single_active_consumer_tag": null,
+    "state": "running",
+    "type": "quorum",
+    "vhost": "/"
+  },
+  {
+    "arguments": {
+      "x-queue-type": "classic"
+    },
+    "auto_delete": false,
+    "backing_queue_status": {
+      "avg_ack_egress_rate": 0.0,
+      "avg_ack_ingress_rate": 0.0,
+      "avg_egress_rate": 0.0,
+      "avg_ingress_rate": 0.0,
+      "delta": [
+        "delta",
+        "todo",
+        "todo",
+        "todo",
+        "todo"
+      ],
+      "len": 7,
+      "mode": "default",
+      "next_deliver_seq_id": 7,
+      "next_seq_id": 7,
+      "num_pending_acks": 0,
+      "num_unconfirmed": 0,
+      "q1": 0,
+      "q2": 0,
+      "q3": 0,
+      "q4": 7,
+      "target_ram_count": "infinity",
+      "version": 2
+    },
+    "consumer_capacity": 0,
+    "consumer_utilisation": 0,
+    "consumers": 0,
+    "durable": true,
+    "effective_policy_definition": {},
+    "exclusive": false,
+    "exclusive_consumer_tag": null,
+    "garbage_collection": {
+      "fullsweep_after": 65535,
+      "max_heap_size": 0,
+      "min_bin_vheap_size": 46422,
+      "min_heap_size": 233,
+      "minor_gcs": 12
+    },
+    "head_message_timestamp": null,
+    "idle_since": "2026-11-22T14:03:11.512+00:00",
+    "memory": 21640,
+    "message_bytes": 2940,
+    "message_bytes_paged_out": 0,
+    "message_bytes_persistent": 2940,
+    "message_bytes_ram": 2940,
+    "message_bytes_ready": 2940,
+    "message_bytes_unacknowledged": 0,
+    "messages": 7,
+    "messages_details": {
+      "rate": 0.0
+    },
+    "messages_paged_out": 0,
+    "messages_persistent": 7,
+    "messages_ram": 7,
+    "messages_ready": 7,
+    "messages_ready_details": {
+      "rate": 0.0
+    },
+    "messages_ready_ram": 7,
+    "messages_unacknowledged": 0,
+    "messages_unacknowledged_details": {
+      "rate": 0.0
+    },
+    "messages_unacknowledged_ram": 0,
+    "name": "prueba.classic",
+    "node": "rabbit@rabbitmq3",
+    "operator_policy": null,
+    "policy": null,
+    "recoverable_slaves": null,
+    "reductions": 10442,
+    "reductions_details": {
+      "rate": 0.0
+    },
+    "single_active_consumer_tag": null,
+    "state": "running",
+    "storage_version": 2,
+    "type": "classic",
+    "vhost": "/"
+  },
+  {
+    "arguments": {},
+    "auto_delete": false,
+    "durable": true,
+    "exclusive": false,
+    "name": "recien.creada",
+    "node": "rabbit@rabbitmq1",
+    "state": "running",
+    "type": "classic",
+    "vhost": "/"
+  }
+]

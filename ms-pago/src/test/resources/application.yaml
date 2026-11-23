@@ -1,0 +1,68 @@
+# Configuración de pruebas: reemplaza COMPLETA a la de main (mismo nombre en
+# el classpath), por eso repite todas las claves app.*.
+spring:
+  application:
+    name: pago-test
+  datasource:
+    # H2 en modo MySQL: mismas tablas que en producción, sin servidor.
+    url: jdbc:h2:mem:pagos_test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  kafka:
+    # @EmbeddedKafka publica la dirección del broker en esta propiedad.
+    bootstrap-servers: ${spring.embedded.kafka.brokers:localhost:9092}
+    listener:
+      missing-topics-fatal: false
+
+app:
+  cors:
+    origenes-permitidos: http://localhost:5173,http://localhost:5174
+  front:
+    url: http://localhost:5173
+    url-tienda: http://localhost:5174
+  pagos:
+    return-url: http://localhost:8083/api/pagos/commit
+  webpay:
+    codigo-comercio: "597055555532"
+    api-key: ""
+  kafka:
+    topicos:
+      intentos-pago: payment-attempts
+      resultados-pago: pagos-resultado
+      sufijo-dlt: .DLT
+    grupos:
+      antifraude: grupo-antifraude-test
+      dlt: grupo-dlt-ms-pago-test
+    concurrencia:
+      antifraude: 3
+    reintentos:
+      # Backoff corto: las pruebas no deben esperar 1+2+4 s por reintento.
+      intervalo-inicial-ms: 50
+      multiplicador: 2.0
+      intervalo-maximo-ms: 200
+      maximo: 3
+    timeout-confirmacion-segundos: 5
+  antifraude:
+    ventana-segundos: 10
+    umbral: 3
+    bloqueo-minutos: 30
+    pepper: pepper-de-prueba
+    retencion-intentos-minutos: 60
+    # La limpieza programada no debe correr en medio de una prueba.
+    limpieza-ms: 3600000
+
+logging:
+  level:
+    org.apache.kafka: WARN
+    kafka: WARN
+    org.springframework.kafka: INFO

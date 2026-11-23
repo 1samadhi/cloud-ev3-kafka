@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
 
     <name>ms-recomendaciones</name>
-    <description>Microservicio de recomendaciones con Kafka y TensorFlow</description>
+    <description>Recomendaciones por similitud, historial en DynamoDB y dashboard de metricas por WebSocket</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -23,60 +23,102 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- 1.18.42 es la primera version de Lombok que soporta el javac de JDK 25
+             (el JDK local); con la que trae el parent la compilacion falla. -->
+        <lombok.version>1.18.42</lombok.version>
+        <!-- Misma version del SDK que lambda-telemetria: un solo juego de jars en ~/.m2. -->
+        <aws.sdk.version>2.29.52</aws.sdk.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- El BOM alinea todos los modulos del SDK v2 (dynamodb, enhanced, http
+                 clients): mezclar versiones entre ellos rompe en runtime, no al compilar. -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
-        <!-- Spring Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Spring Data JPA -->
+        <!-- WebSocket nativo (sin STOMP) para el dashboard en vivo: el navegador
+             recibe un JSON plano cada 2 s sin librerias cliente extra. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
-        <!-- Spring Kafka -->
+        <!-- jakarta.validation para validar el DTO en el listener y en los controllers. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Actuator: /actuator/health para el HEALTHCHECK de Docker y el sondeo de la consola. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
-        <!-- MySQL Driver -->
+        <!-- DynamoDB con el enhanced client: mapea clases Java a items sin escribir
+             AttributeValue a mano. Reemplaza a MySQL/JPA en este servicio. -->
         <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>dynamodb-enhanced</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>dynamodb</artifactId>
+            <exclusions>
+                <!-- Todo el acceso es sincrono: el cliente Netty (asincrono) solo
+                     agrega peso a la imagen. Queda apache-client como HTTP. -->
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
-        <!-- Lombok -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
-        </dependency>
-
-        <!-- Jackson Databind -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-
-        <!-- Jackson Datatype JSR310 (LocalDateTime support) -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
-        <!-- Test Dependencies -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ===================== Pruebas ===================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
+        <!-- @EmbeddedKafka (KRaft embebido): prueba el flujo real con DLT sin Docker. -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka-test</artifactId>
@@ -86,6 +128,28 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- Desde JDK 23 javac ya no ejecuta procesadores de anotaciones
+                         encontrados en el classpath: sin proc=full + rutas explicitas
+                         Lombok no corre y no compila nada. -->
+                    <proc>full</proc>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-configuration-processor</artifactId>
+                            <version>${project.parent.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

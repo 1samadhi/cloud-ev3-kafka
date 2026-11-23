@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: ms-productos
+
+  datasource:
+    # createDatabaseIfNotExist: el servicio puede arrancar contra un MySQL recién creado
+    # aunque init.sql todavía no tenga la base productos_db.
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql-db:3306/productos_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    # Sin open-in-view: la sesión JPA no debe quedar abierta durante la serialización
+    # HTTP; todo acceso a datos ocurre dentro de los servicios transaccionales.
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        # Si una reserva no obtiene el bloqueo de fila en 5 s se aborta en vez de
+        # colgar el hilo HTTP indefinidamente (ms-carrito espera la respuesta).
+        jakarta.persistence.lock.timeout: 5000
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+
+app:
+  kafka:
+    # Fuente única de nombres de tópico (§3.1): ninguna clase escribe el nombre literal.
+    topicos:
+      interacciones: ${KAFKA_TOPICO_INTERACCIONES:interacciones-user}
+      catalogo: ${KAFKA_TOPICO_CATALOGO:catalogo-productos}
+    # Al arrancar se publica el catálogo completo en el tópico compactado para que un
+    # consumidor nuevo (ms-recomendaciones) siempre encuentre el estado vigente.
+    publicar-catalogo-al-arrancar: ${KAFKA_PUBLICAR_CATALOGO_AL_ARRANCAR:true}
+    # Tiempo máximo que send() puede bloquear el hilo HTTP esperando metadatos del
+    # clúster. Si Kafka está caído, ver un producto no puede tardar 60 s (default de Kafka).
+    max-bloqueo-ms: ${KAFKA_MAX_BLOQUEO_MS:3000}
+
+  cors:
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+
+  stock:
+    # Umbral (inclusive) bajo el cual el panel admin marca el producto como BAJO (§7.2).
+    umbral-bajo: ${STOCK_UMBRAL_BAJO:10}
+
+# -----------------------------------------------------------------------------
+# Actuator: solo health. El resto de los endpoints (env, beans, configprops,
+# heapdump) filtran configuración y credenciales sin autenticación.
+# -----------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      # Actuator NO pasa por el CorsConfig de MVC: lo atiende su propio
+      # handler mapping, que sólo lee estas propiedades. Sin esto el navegador
+      # bloquea el sondeo de /actuator/health y los frontends muestran el
+      # servicio como caído estando arriba.
+      cors:
+        allowed-origins: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+        allowed-methods: GET
+        max-age: 3600s
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # El detalle por componente permite ver CUÁL dependencia está caída (la base).
+      show-details: always
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8086}

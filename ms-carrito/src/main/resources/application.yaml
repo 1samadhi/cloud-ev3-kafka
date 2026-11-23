@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: ms-carrito
+
+  datasource:
+    # createDatabaseIfNotExist: el servicio arranca aunque init.sql todavía no haya creado carrito_db.
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/carrito_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
+      validation-timeout: 5000
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    # Las entidades se convierten a DTO dentro de la transacción del servicio: no hace falta
+    # mantener la sesión abierta durante la vista (y evita consultas perezosas escondidas).
+    open-in-view: false
+    properties:
+      hibernate:
+        # Carga ítems e historial de varios pedidos en lotes en vez de 1 consulta por pedido (N+1).
+        default_batch_fetch_size: 50
+        jdbc:
+          time_zone: UTC
+
+  kafka:
+    # Lo leen KafkaConfig (fábricas explícitas) y el KafkaAdmin de Boot.
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092,localhost:9093,localhost:9094}
+
+  rabbitmq:
+    # Varias direcciones = failover: si un nodo del clúster cae, el cliente se conecta a otro.
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672,localhost:5673,localhost:5674}
+    # random reparte las conexiones de las réplicas del servicio entre los 3 nodos.
+    address-shuffle-mode: random
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASS:pedidos360}
+    # Corto a propósito: si RabbitMQ está caído, la petición HTTP del carrito no debe quedar
+    # colgada esperando la conexión (dominios de falla independientes).
+    connection-timeout: 3s
+    # Confirmación del broker por mensaje (ack/nack con correlationId) ...
+    publisher-confirm-type: correlated
+    # ... y devolución de los mensajes que el exchange no pudo rutear a ninguna cola.
+    publisher-returns: true
+    template:
+      # Sin mandatory, un mensaje sin ruta se descarta en silencio y el returns-callback nunca se entera.
+      mandatory: true
+
+app:
+  kafka:
+    topicos:
+      interacciones: ${KAFKA_TOPICO_INTERACCIONES:interacciones-user}
+      pagos-resultado: ${KAFKA_TOPICO_PAGOS_RESULTADO:pagos-resultado}
+    # DeadLetterPublishingRecoverer publica en <tópico>.DLT (convención de §2.1).
+    sufijo-dlt: .DLT
+    grupos:
+      carrito: grupo-carrito
+      dlt: grupo-dlt-carrito
+    concurrencia:
+      # 3 hilos = 3 particiones de pagos-resultado: cada hilo procesa una partición.
+      carrito: 3
+    auto-arranque-listeners: true
+
+  rabbit:
+    exchange: pedidos360.notificaciones
+    exchange-dlx: pedidos360.notificaciones.dlx
+    cola-cliente: notificaciones.cliente
+    cola-auditoria: notificaciones.auditoria
+    cola-dlq: notificaciones.cliente.dlq
+
+  productos:
+    url: ${PRODUCTOS_URL:http://localhost:8086}
+    timeout-conexion-ms: 2000
+    timeout-lectura-ms: 5000
+
+  envios:
+    # Simulación de la logística: cada tick avanza un paso a los pedidos en curso.
+    avance-ms: ${ENVIOS_AVANCE_MS:20000}
+    avance-habilitado: ${ENVIOS_AVANCE_HABILITADO:true}
+
+  # Zona en la que se agrupan las ventas por día del resumen admin.
+  zona-horaria: ${APP_ZONA_HORARIA:America/Santiago}
+
+  cors:
+    origenes-permitidos: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+
+# -----------------------------------------------------------------------------
+# Actuator: sólo health. El resto (env, beans, configprops, heapdump) filtra
+# configuración y credenciales sin autenticación, y aquí no hay Spring Security.
+# -----------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      # Actuator NO pasa por el CorsConfig de MVC: lo atiende su propio
+      # handler mapping, que sólo lee estas propiedades. Sin esto el navegador
+      # bloquea el sondeo de /actuator/health y los frontends muestran el
+      # servicio como caído estando arriba.
+      cors:
+        allowed-origins: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+        allowed-methods: GET
+        max-age: 3600s
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # El detalle por componente muestra CUÁL dependencia está caída (MySQL, RabbitMQ).
+      show-details: always
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8087}
+
+logging:
+  level:
+    # El consumidor/productor de Kafka es muy verboso en INFO (configs completas en cada arranque).
+    org.apache.kafka: WARN
