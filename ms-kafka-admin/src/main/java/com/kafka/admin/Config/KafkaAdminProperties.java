@@ -23,6 +23,5 @@ public class KafkaAdminProperties {
     /** Tópicos que la API no deja borrar (los del proyecto y sus DLT). */
     private List<String> topicosProtegidos = new ArrayList<>(List.of(
             "interacciones-user", "payment-attempts", "pagos-resultado", "catalogo-productos",
-            "interacciones-user.DLT", "payment-attempts.DLT", "pagos-resultado.DLT", "catalogo-productos.DLT",
-            "telemtria-camion"));
+            "interacciones-user.DLT", "payment-attempts.DLT", "pagos-resultado.DLT", "catalogo-productos.DLT"));
 }

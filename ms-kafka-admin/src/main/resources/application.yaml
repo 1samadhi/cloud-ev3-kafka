@@ -27,7 +27,6 @@ app:
       - payment-attempts.DLT
       - pagos-resultado.DLT
       - catalogo-productos.DLT
-      - telemtria-camion
 
 # -----------------------------------------------------------------------------
 # Actuator: solo health, y solo lo necesario.
