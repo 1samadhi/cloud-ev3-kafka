@@ -148,7 +148,7 @@ class ControllersWebMvcTest {
 
     @Test
     void resumenAdmin200() throws Exception {
-        when(servicioResumenAdmin.resumen()).thenReturn(new ResumenAdminDTO(List.of(), List.of(), List.of(), 0, 0, 0));
+        when(servicioResumenAdmin.resumen()).thenReturn(new ResumenAdminDTO(List.of(), List.of(), List.of(), 0, 0, 0, 0));
         mvc.perform(get("/api/admin/resumen")).andExpect(status().isOk()).andExpect(jsonPath("$.ingresosTotales").value(0));
     }
 
