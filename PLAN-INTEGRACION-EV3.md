@@ -326,7 +326,8 @@ ProductoCatalogoDTO             → catalogo-productos (snapshot completo; null 
 - **DynamoDB (+2)** con AWS SDK v2 *enhanced client*:
   - `HistorialEventos` (PK `usuarioId`, SK `instante#idEvento`) — cada evento consumido.
   - `RecomendacionesUsuario` (PK `usuarioId`) — último top 5 con motivos y fecha.
-  - `EventosOperaciones` (PK `id`; la tabla con Streams que dispara la Lambda, doc 07) — un
+  - `EventosOperaciones` (PK `tipo` + SK `ocurridoEn`, igual que `infra/terraform-telemetria/dynamodb.tf`;
+    la tabla con Streams que dispara la Lambda, doc 07) — un
     snapshot de métricas cada 5 s **sólo si `app.dynamodb.publicar-operaciones=true`**.
   - Endpoint configurable: `${DYNAMODB_ENDPOINT:}` (vacío = AWS real con credenciales del
     entorno, incluidas las temporales del Learner Lab `AWS_SESSION_TOKEN`); en compose apunta a
