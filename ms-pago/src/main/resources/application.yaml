@@ -106,6 +106,14 @@ app:
 management:
   endpoints:
     web:
+      # Actuator NO pasa por el CorsConfig de MVC: lo atiende su propio
+      # handler mapping, que sólo lee estas propiedades. Sin esto el navegador
+      # bloquea el sondeo de /actuator/health y los frontends muestran el
+      # servicio como caído estando arriba.
+      cors:
+        allowed-origins: ${CORS_ORIGENES:http://localhost:5173,http://localhost:5174,http://localhost:8090,http://localhost:8091}
+        allowed-methods: GET
+        max-age: 3600s
       exposure:
         include: health
   endpoint:

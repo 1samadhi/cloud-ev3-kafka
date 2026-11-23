@@ -30,11 +30,5 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowCredentials(true)
                 .maxAge(3600);
 
-        // La consola sondea /actuator/health para pintar el estado del servicio; sólo lectura.
-        registry.addMapping("/actuator/**")
-                .allowedOrigins(origenes)
-                .allowedMethods("GET", "OPTIONS")
-                .allowedHeaders("*")
-                .maxAge(3600);
     }
 }
