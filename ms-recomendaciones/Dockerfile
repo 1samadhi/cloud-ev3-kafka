@@ -13,7 +13,9 @@ FROM eclipse-temurin:21-jre
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
-RUN useradd -m -u 1001 appuser
+# UID 10001 y no 1000: eclipse-temurin:21-jre viene sobre Ubuntu, que ya trae
+# el usuario 'ubuntu' con UID 1000, y useradd -u 1000 falla con codigo 4.
+RUN useradd -m -u 10001 appuser
 WORKDIR /app
 COPY --from=builder /build/target/ms-recomendaciones-*.jar app.jar
 RUN chown appuser:appuser /app && chmod 755 /app
