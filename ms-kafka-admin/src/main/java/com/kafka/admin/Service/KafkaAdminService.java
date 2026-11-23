@@ -55,14 +55,14 @@ public class KafkaAdminService {
         this.adminClient = adminClient;
         this.validador = validador;
         this.timeoutMs = propiedades.getTimeoutMs();
+        // Tópicos del dominio que no pueden eliminarse desde la API: borrarlos en
+        // caliente dejaría a los microservicios publicando al vacío. La lista vive en
+        // app.kafka-admin.topicos-protegidos para incluir los DLT sin recompilar.
         // LinkedHashSet para que el mensaje de error liste los tópicos en orden estable.
         this.topicosProtegidos = new LinkedHashSet<>(propiedades.getTopicosProtegidos());
     }
 
-    // =====================================================================
-    // Tópicos (lo que ya existía)
-    // =====================================================================
-
+    // ==============================================================
     /**
      * Lista todos los tópicos del cluster, excluyendo los internos (que comienzan con '__').
      * Calcula el ISR como "X/Y" donde X es la cantidad total de replicas en ISR
