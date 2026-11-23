@@ -113,8 +113,12 @@ mkdir -p /usr/local/lib/docker/cli-plugins
 curl -sSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-# Java 21 para correr los microservicios directamente en la instancia
-dnf install -y java-21-amazon-corretto-headless
+# Java 21 COMPLETO (-devel) para compilar en la instancia.
+# NO usar 'java-21-amazon-corretto-headless': ese es solo el runtime, trae
+# 'java' pero no 'javac', y Maven cae al JDK viejo del sistema fallando con
+# "error: release version 21 not supported". El sintoma enga~na: systemd deja
+# los servicios en bucle de reinicio porque el jar nunca se genero.
+dnf install -y java-21-amazon-corretto-devel
 touch /var/lib/cloud/instance/PEDIDOS360_LISTO
 UD
 )
