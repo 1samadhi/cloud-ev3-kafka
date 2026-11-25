@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    # LOCK_TIMEOUT alto: la prueba de concurrencia pone varios hilos a esperar el mismo
+    # bloqueo de fila y el default de H2 (1 s) los abortaría antes de tiempo.
+    url: jdbc:h2:mem:productos_test;DB_CLOSE_DELAY=-1;MODE=MySQL;LOCK_TIMEOUT=10000
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        jakarta.persistence.lock.timeout: 10000
+  kafka:
+    # Lo fija @EmbeddedKafka (spring.embedded.kafka.brokers) en las pruebas de
+    # integración; en @WebMvcTest no se crea ningún cliente Kafka.
+    bootstrap-servers: ${spring.embedded.kafka.brokers:localhost:59092}
+
+# Este archivo REEMPLAZA al de main en el classpath de test: por eso repite app.*.
+app:
+  kafka:
+    topicos:
+      interacciones: interacciones-user
+      catalogo: catalogo-productos
+    publicar-catalogo-al-arrancar: true
+    max-bloqueo-ms: 2000
+  cors:
+    origenes-permitidos: http://localhost:5174
+  stock:
+    umbral-bajo: 10
+
+logging:
+  level:
+    org.apache.kafka: WARN
+    kafka: WARN
+    state.change.logger: WARN

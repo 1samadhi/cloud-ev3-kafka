@@ -1,0 +1,34 @@
+# Perfil de pruebas: SIN Docker, SIN MySQL y SIN RabbitMQ real.
+spring:
+  datasource:
+    url: jdbc:h2:mem:notificaciones_db;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  rabbitmq:
+    addresses: localhost:5672
+    listener:
+      simple:
+        # Los contenedores no arrancan: no hay broker al que conectarse. Los
+        # listeners se prueban invocando sus métodos directamente.
+        auto-startup: false
+        acknowledge-mode: auto
+        default-requeue-rejected: false
+
+app:
+  rabbit:
+    reintentos:
+      # Mismo número de intentos que producción; esperas de milisegundos para
+      # que el test de reintentos no tarde segundos.
+      max-intentos: 3
+      intervalo-inicial-ms: 1
+      multiplicador: 2.0
+      intervalo-maximo-ms: 5
+  sse:
+    timeout-ms: 60000
+    # Que el heartbeat programado no interfiera con lo que miran los tests.
+    heartbeat-ms: 3600000

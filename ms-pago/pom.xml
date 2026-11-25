@@ -23,6 +23,9 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- 1.18.42 es la primera version de Lombok que funciona con JDK 25 (el JDK
+             local); la que fija Boot 3.5.6 rompe el compilador. -->
+        <lombok.version>1.18.42</lombok.version>
     </properties>
 
     <dependencies>
@@ -30,6 +33,15 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Actuator: expone /actuator/health para el healthcheck de
+             Docker, el depends_on del compose y el sondeo del frontend. Sin esto
+             el estado de un servicio solo se puede adivinar llamando a un
+             endpoint de negocio. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
         <!-- Spring Data JPA -->
@@ -80,19 +92,59 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
             <optional>true</optional>
         </dependency>
 
-        <!-- Spring Boot Test (optional) -->
+        <!-- Pruebas: JUnit 5, Mockito, MockMvc, AssertJ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Broker Kafka embebido (KRaft) para probar productor, consumidor y DLT
+             sin Docker: en la maquina de desarrollo no hay contenedores. -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Espera asíncrona en las pruebas con Kafka: el consumidor procesa en
+             otro hilo y un sleep fijo sería lento o frágil. Versión gestionada por Boot. -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Base en memoria para los tests de JPA: reemplaza a MySQL sin servidor. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- En JDK >= 23 el procesamiento de anotaciones ya no es implicito:
+                         sin proc=full y la ruta explicita, Lombok no genera nada y no compila. -->
+                    <proc>full</proc>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

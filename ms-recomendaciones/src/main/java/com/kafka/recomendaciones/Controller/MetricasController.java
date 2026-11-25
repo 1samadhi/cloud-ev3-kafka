@@ -1,32 +1,28 @@
 package com.kafka.recomendaciones.Controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-
-import com.kafka.recomendaciones.DTO.MetricasDTO;
-import com.kafka.recomendaciones.Service.MetricasService;
+import com.kafka.recomendaciones.DTO.SnapshotMetricasDTO;
+import com.kafka.recomendaciones.Service.MetricasEnVivo;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Controlador REST para exponer las métricas de operación del servicio.
- * Endpoint: GET /api/metricas
- *
- * CORS habilitado para permitir consumo desde frontend local (file://).
+ * GET /api/metricas: el MISMO snapshot que difunde /ws/metricas. Lo usa el modo
+ * "Leer de los servicios" de la consola (sondeo), que lee productosMasVistos,
+ * interaccionesPorMinuto, usuariosActivos y totalInteracciones.
  */
 @RestController
 @RequestMapping("/api/metricas")
 public class MetricasController {
 
-    @Autowired
-    private MetricasService metricasService;
+    private final MetricasEnVivo metricas;
 
-    /**
-     * Obtiene las métricas en tiempo real para el dashboard.
-     *
-     * @return MetricasDTO con productosMasVistos, interaccionesPorMinuto,
-     *         usuariosActivos y totalInteracciones.
-     */
+    public MetricasController(MetricasEnVivo metricas) {
+        this.metricas = metricas;
+    }
+
     @GetMapping
-    public MetricasDTO obtenerMetricas() {
-        return metricasService.obtenerMetricas();
+    public SnapshotMetricasDTO obtener() {
+        return metricas.snapshot();
     }
 }

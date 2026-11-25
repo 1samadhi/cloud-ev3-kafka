@@ -1,0 +1,186 @@
+[
+  {
+    "applications": [
+      {
+        "name": "rabbit",
+        "description": "RabbitMQ",
+        "version": "3.13.7"
+      }
+    ],
+    "auth_mechanisms": [
+      {
+        "name": "PLAIN",
+        "description": "SASL PLAIN authentication mechanism",
+        "enabled": true
+      }
+    ],
+    "being_drained": false,
+    "config_files": [
+      "/etc/rabbitmq/conf.d/10-defaults.conf",
+      "/etc/rabbitmq/rabbitmq.conf"
+    ],
+    "connection_closed": 12,
+    "connection_closed_details": {
+      "rate": 0.0
+    },
+    "context_switches": 512334,
+    "context_switches_details": {
+      "rate": 120.6
+    },
+    "contexts": [
+      {
+        "description": "RabbitMQ Management",
+        "path": "/",
+        "cowboy_opts": "[{sendfile,false}]",
+        "port": "15672"
+      }
+    ],
+    "db_dir": "/var/lib/rabbitmq/mnesia/rabbit@rabbitmq1",
+    "disk_free": 53687091200,
+    "disk_free_alarm": false,
+    "disk_free_details": {
+      "rate": 0.0
+    },
+    "disk_free_limit": 1000000000,
+    "enabled_plugins": [
+      "rabbitmq_management"
+    ],
+    "exchange_types": [
+      {
+        "name": "topic",
+        "description": "AMQP topic exchange, as per the AMQP specification",
+        "enabled": true
+      }
+    ],
+    "fd_total": 1048576,
+    "fd_used": 38,
+    "fd_used_details": {
+      "rate": 0.0
+    },
+    "io_read_avg_time": 0.0,
+    "log_files": [
+      "<stdout>"
+    ],
+    "mem_alarm": false,
+    "mem_calculation_strategy": "rss",
+    "mem_limit": 402653184,
+    "mem_used": 150994944,
+    "mem_used_details": {
+      "rate": -1520.0
+    },
+    "name": "rabbit@rabbitmq1",
+    "net_ticktime": 60,
+    "os_pid": "272",
+    "partitions": [],
+    "proc_total": 1048576,
+    "proc_used": 512,
+    "processors": 8,
+    "ra_open_file_metrics": {
+      "ra_log_wal": 1,
+      "ra_log_segment_writer": 0
+    },
+    "rates_mode": "basic",
+    "run_queue": 1,
+    "running": true,
+    "sockets_total": 943629,
+    "sockets_used": 4,
+    "type": "disc",
+    "uptime": 7265341
+  },
+  {
+    "applications": [
+      {
+        "name": "rabbit",
+        "description": "RabbitMQ",
+        "version": "3.13.7"
+      }
+    ],
+    "auth_mechanisms": [
+      {
+        "name": "PLAIN",
+        "description": "SASL PLAIN authentication mechanism",
+        "enabled": true
+      }
+    ],
+    "being_drained": false,
+    "config_files": [
+      "/etc/rabbitmq/conf.d/10-defaults.conf",
+      "/etc/rabbitmq/rabbitmq.conf"
+    ],
+    "connection_closed": 12,
+    "connection_closed_details": {
+      "rate": 0.0
+    },
+    "context_switches": 512334,
+    "context_switches_details": {
+      "rate": 120.6
+    },
+    "contexts": [
+      {
+        "description": "RabbitMQ Management",
+        "path": "/",
+        "cowboy_opts": "[{sendfile,false}]",
+        "port": "15672"
+      }
+    ],
+    "db_dir": "/var/lib/rabbitmq/mnesia/rabbit@rabbitmq2",
+    "disk_free": 53687091200,
+    "disk_free_alarm": false,
+    "disk_free_details": {
+      "rate": 0.0
+    },
+    "disk_free_limit": 1000000000,
+    "enabled_plugins": [
+      "rabbitmq_management"
+    ],
+    "exchange_types": [
+      {
+        "name": "topic",
+        "description": "AMQP topic exchange, as per the AMQP specification",
+        "enabled": true
+      }
+    ],
+    "fd_total": 1048576,
+    "fd_used": 38,
+    "fd_used_details": {
+      "rate": 0.0
+    },
+    "io_read_avg_time": 0.0,
+    "log_files": [
+      "<stdout>"
+    ],
+    "mem_alarm": false,
+    "mem_calculation_strategy": "rss",
+    "mem_limit": 402653184,
+    "mem_used": 120795955,
+    "mem_used_details": {
+      "rate": -1520.0
+    },
+    "name": "rabbit@rabbitmq2",
+    "net_ticktime": 60,
+    "os_pid": "272",
+    "partitions": [],
+    "proc_total": 1048576,
+    "proc_used": 512,
+    "processors": 8,
+    "ra_open_file_metrics": {
+      "ra_log_wal": 1,
+      "ra_log_segment_writer": 0
+    },
+    "rates_mode": "basic",
+    "run_queue": 1,
+    "running": true,
+    "sockets_total": 943629,
+    "sockets_used": 4,
+    "type": "disc",
+    "uptime": 7265341
+  },
+  {
+    "cluster_links": [],
+    "name": "rabbit@rabbitmq3",
+    "type": "disc",
+    "running": false,
+    "being_drained": false,
+    "partitions": []
+  }
+]

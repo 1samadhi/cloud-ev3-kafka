@@ -7,8 +7,10 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * DTO que contiene el resumen de alertas de fraude para el dashboard de operaciones.
- * Incluye contadores y lista de bloqueos vigentes.
+ * Resumen para el panel de alertas. Forma idéntica a la anterior (la consola
+ * la lee). totalClientesVigilados conserva el nombre por compatibilidad, pero
+ * ahora cuenta huellas de tarjeta distintas con intentos en la última hora
+ * (la retención de la tabla intento_tarjeta).
  */
 @Data
 @NoArgsConstructor

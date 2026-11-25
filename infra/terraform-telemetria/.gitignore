@@ -1,0 +1,8 @@
+# Estado y cache de Terraform: no se versionan.
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars
+!ejemplo.tfvars
+crash.log
