@@ -1,0 +1,82 @@
+# Plantilla del override de Compose para un despliegue en AWS
+#
+# QUE ES ESTO
+# docker-compose.yml esta escrito para desarrollo local, y dos valores no
+# sirven en AWS. Este archivo los corrige SIN tocar el compose original.
+#
+# COMO USARLO
+#   1. Copialo a la raiz del proyecto, dentro de la instancia:
+#        cp despliegue/plantilla-compose-override.yml docker-compose.override.yml
+#   2. Reemplaza TU_IP_PUBLICA por la IP de tu EC2 (la que imprime 01-infra).
+#   3. docker compose up -d
+#
+# Docker Compose lo toma automaticamente si se llama docker-compose.override.yml
+# y esta junto al compose principal. No se versiona con la IP puesta: cada
+# despliegue tiene la suya.
+#
+# ---------------------------------------------------------------------------
+# POR QUE HACE FALTA, punto por punto
+#
+# 1) CORS_ORIGENES
+#    El compose base lo fija a localhost:
+#      CORS_ORIGENES: "http://localhost:5173,...,http://localhost:8091"
+#    En AWS el front se sirve desde la IP publica, asi que ese origen no esta
+#    en la lista y el servidor lo rechaza. Se nota sobre todo en el WebSocket:
+#    el handshake devuelve 403 incluso desde el front propio, que es muy
+#    confuso de diagnosticar porque "deberia funcionar".
+#
+# 2) DYNAMODB_ENDPOINT vacio + credenciales vacias
+#    El compose base apunta a dynamodb-local y pone credenciales "local":
+#      DYNAMODB_ENDPOINT: "${DYNAMODB_ENDPOINT-http://dynamodb-local:8000}"
+#      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID:-local}"
+#    Para usar el DynamoDB REAL hay que vaciar las dos cosas. Vaciar las
+#    credenciales es lo que deja al SDK caer en la cadena por defecto y llegar
+#    al rol de la instancia (LabRole), que entrega credenciales rotadas solas.
+#
+#    Esto importa para la demo: las credenciales del Learner Lab vencen en una
+#    hora. Pegarlas aca dejaria el servicio muerto a mitad de la presentacion.
+#
+#    Requisito: el metadata de EC2 necesita hop limit 2 para ser alcanzable
+#    desde un contenedor. Lo deja listo 00-preparar-entorno.sh.
+# ---------------------------------------------------------------------------
+
+services:
+
+  ms-recomendaciones:
+    environment:
+      # Los origenes reales del front, no localhost.
+      CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
+      # Vacio = DynamoDB real de AWS.
+      DYNAMODB_ENDPOINT: ""
+      DYNAMODB_CREAR_TABLAS: "true"
+      # Vacias a proposito: asi el SDK usa el rol de la instancia.
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_SESSION_TOKEN: ""
+      AWS_REGION: "us-east-1"
+
+  # Los demas solo necesitan el CORS. Si en el futuro alguno sirve al
+  # navegador directo (sin pasar por el API Gateway), tambien lo necesitara.
+  ms-pago:
+    environment:
+      CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
+
+  ms-productos:
+    environment:
+      CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
+
+  ms-carrito:
+    environment:
+      CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
+
+  ms-notificaciones:
+    environment:
+      CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
+
+  ms-kafka-admin:
+    environment:
+      CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
+
+  ms-rabbit-admin:
+    environment:
+      CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
