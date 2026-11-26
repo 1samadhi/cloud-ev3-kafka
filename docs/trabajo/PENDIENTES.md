@@ -1,27 +1,49 @@
 # Pendientes — listos para tomar
 
-Estado al 22-11-2026, versión `v3.0.0-rc.1`. Entrega: **viernes 27-11**.
+Estado al **26-11-2026**, versión `v3.0.0-rc.1`. Entrega: **viernes 27-11**.
 
 Cada pendiente trae el contexto necesario para tomarlo sin haber estado en la conversación:
 por qué importa, dónde se toca, qué hacer, cuándo está terminado y cómo comprobarlo. Antes de
 empezar cualquiera, levanta el sistema (README → *Arranque*) y corre
 `python infra/prueba-humo.py`: si no da `TODO OK`, arregla eso primero.
 
+## Observaciones del docente en la EV2
+
+Son requisitos de la entrega, no mejoras opcionales.
+
+| | Observación | Estado |
+|---|---|---|
+| F1 | **API Gateway para el frontend** | ✅ `despliegue/14-rutas-frontend-ev3.sh`: 29 rutas `/api/*` y `API_BASE` en el compose. El contrato `/v1` del `10`/`12` no le servía al navegador (ver cabecera del `14`) |
+| F2 | **No usar proxy en backend** | ✅ ya estaba: ningún `proxy_pass` en los dos `nginx.conf`, que citan la observación |
+| F3 | **CORS con la ruta de la API del frontend** | ✅ el gateway reenvía `Origin` y devuelve la respuesta CORS del servicio; sin comodín `*` |
+| F4 | **Todas las colas deben funcionar** | ✅ `evidencias/55`: las tres colas con mensajes reales. Los 4 DLT de Kafka, en `evidencias/51` |
+
 ## Resumen
 
-| ID | Pendiente | Repo | Prioridad | Esfuerzo | Sugerido para |
+| ID | Pendiente | Repo | Prioridad | Esfuerzo | Estado |
 |---|---|---|---|---|---|
-| P1 | Consola alineada al backend nuevo | cloud-ev3-front | **alta** | 4–6 h | Diego |
-| P2 | `despliegue/` para la arquitectura nueva | cloud-ev3-kafka | **alta** | 3–5 h | **Ismael** (escribió los scripts) |
-| P3 | Terraform de telemetría en el Learner Lab | cloud-ev3-kafka | **alta** (+3, +2) | 2–3 h | **Ismael** |
-| P4 | Login con Cognito + filtro JWT | los tres | media | 5–8 h | quien termine primero |
-| P5 | Panel admin de la tienda: ingresos que no cuadran | ambos | baja | 1 h | cualquiera |
-| P6 | Evidencia de un pago Webpay **aprobado** | — | **alta**, 5 min | 5 min | cualquiera |
-| P7 | Ensayo de la demo y evidencias de fallos | — | **alta** | 2 h | los dos |
-| P8 | Doce avisos de lint en la tienda | pedidos360-tienda | baja | 1 h | cualquiera |
-| P9 | Defectos conocidos (pedidos que nunca vencen, carrera del 4.º intento…) | backend | media | 2–4 h | Diego |
+| P1 | Consola alineada al backend nuevo | cloud-ev3-front | **alta** | 4–6 h | **abierto** · Diego |
+| P2 | `despliegue/` para la arquitectura nueva | cloud-ev3-kafka | alta | — | ✅ hecho (scripts `01`+`09`+`11`–`14`, dos labs) |
+| P3 | Terraform de telemetría en el Learner Lab | cloud-ev3-kafka | — | — | ✅ **cerrado**: la pauta no exige Terraform y el +2 y el +3 ya están evidenciados (`evidencias/52`, `53`) |
+| P4 | Login con Cognito + filtro JWT | los tres | baja | 5–8 h | **fuera de alcance** para esta entrega |
+| P5 | Panel admin de la tienda: ingresos que no cuadran | ambos | — | — | ✅ hecho (`evidencias/54`) |
+| P6 | Evidencia de un pago Webpay **aprobado** | — | **alta**, 5 min | 5 min | **abierto** · cualquiera |
+| P7 | Ensayo de la demo y evidencias de fallos | — | **alta** | 2 h | **abierto** · los dos |
+| P8 | Doce avisos de lint en la tienda | pedidos360-tienda | baja | 1 h | **abierto** |
+| P9 | Defectos conocidos (pedidos que nunca vencen, carrera del 4.º intento…) | backend | media | 2–4 h | **abierto** · Diego |
 
-Si falta tiempo, se recorta en este orden: P8 → P5 → P9 → P4. P6 y P7 no se recortan.
+Lo que queda: **P1**, **P6** y **P7**. Si falta tiempo se recorta P8 → P9. P6 y P7 no se recortan.
+
+## Dos cosas que hay que corregir antes de entregar
+
+1. **`evidencias/50-gateway-7ms`** afirma que las 12 rutas del gateway responden 200. Las que
+   creó el `12` nunca tuvieron *integration response* y devuelven **500**; el verificador del
+   propio script imprime `200000` y reporta "0 bien" sin que se note. O se arregla con el `13`
+   (requiere el parche de `cygpath` si se corre desde Windows) o se corrige el documento.
+2. **`ESTADO-DESPLIEGUE-AWS.md`** describe sólo el lab de Ismael (cuenta 471112736485). Hay un
+   segundo despliegue en el de Diego (851725287694, IP fija `18.211.30.140`, gateway
+   `vih5lem02j`), que es el que se usa para la demo. Hay que documentar los dos y decir cuál es
+   el principal.
 
 ## Cómo trabajar en paralelo sin pisarse
 
