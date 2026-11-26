@@ -38,7 +38,12 @@ nota(){ printf '    \033[1;33m··\033[0m %s\n' "$*"; }
 
 # ---------------------------------------------------------------- 1. puertos
 log "Abriendo los puertos de los servicios nuevos"
-for P in 8086 8087 8088 8089 8091 15672; do
+# SOLO los puertos que el API Gateway necesita alcanzar. La lista original
+# incluia 8091 (tienda) y 15672 (management de RabbitMQ): ninguno de los dos es
+# destino de una integracion, y 15672 es una consola de administracion con
+# credenciales conocidas. Los frontends y el management siguen restringidos a
+# la IP del equipo en el grupo de seguridad.
+for P in 8083 8084 8085 8086 8087 8088 8089; do
   if aws ec2 authorize-security-group-ingress --region "$REGION" --group-id "$SG" \
        --protocol tcp --port "$P" --cidr 0.0.0.0/0 >/dev/null 2>&1; then
     ok "abierto $P"
