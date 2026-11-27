@@ -67,7 +67,7 @@ son parte de P1.
 - **Archivos compartidos**: `docker-compose.yml` y `PLAN-INTEGRACION-EV3.md` los tocan casi
   todos los pendientes. Cambios chicos, commit aparte y avisar.
 - **Cada pendiente terminado** suma su documento `docs/trabajo/NN-<tarea>.md` (siguiente
-  número libre: **19**) y su fila en `docs/trabajo/README.md`. Plantilla: cualquiera de los
+  número libre: **21**) y su fila en `docs/trabajo/README.md`. Plantilla: cualquiera de los
   documentos 10–17. La sección "No verificado" es obligatoria.
 
 ---

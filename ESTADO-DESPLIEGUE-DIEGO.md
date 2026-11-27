@@ -27,6 +27,15 @@ Tienda   http://18.211.30.140:8091      Kafka UI  http://18.211.30.140:8080
 Consola  http://18.211.30.140:8090      RabbitMQ  http://18.211.30.140:15672
 ```
 
+> **Los puertos del grupo de seguridad** (`sg-09f9c2ed55290156a`): el 27-11 se abrieron
+> `80, 8080, 8090, 8091, 15672` a `0.0.0.0/0`. Antes esas cuatro páginas sólo aceptaban
+> `181.226.63.205/32` (la IP de la casa) y no habrían cargado desde la sala.
+>
+> **El `:8091` no se puede quitar con esta infraestructura.** Publicar la tienda en el puerto 80
+> funciona en el servidor (curl 200, CORS correcto, humo 25/25) pero el navegador no abre
+> `http://<IP>` sin puerto. Probado y revertido el 27-11: `docs/trabajo/20-*`. El compose quedó
+> parametrizado (`PUERTO_TIENDA`, `ORIGEN_TIENDA`), con `8091` por defecto.
+
 ## Verificado el 27-11 (todo en AWS, no en local)
 
 | Qué | Resultado |

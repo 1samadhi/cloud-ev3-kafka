@@ -37,6 +37,7 @@ sí. Este índice es el completo.
 | 17 | El sistema completo levantado de verdad, y lo que destapó | backend | [17-compose-primer-arranque-real.md](17-compose-primer-arranque-real.md) | `6116e80`, `5d55d50`, `4c027b4`, `e8016ed` |
 | 18 | Identidad con Cognito, y tres fallos que el gateway escondía | backend + tienda | [18-cognito-identidad-en-el-borde.md](18-cognito-identidad-en-el-borde.md) | `9ecea47` · tienda `bc8ccce`, `958df92` |
 | 19 | Registro de cuentas, y tres errores que se disfrazaban de "microservicio caído" | backend + tienda | [19-registro-y-errores-disfrazados.md](19-registro-y-errores-disfrazados.md) | `ba1b61e` · tienda `4077815`, `5d6a0e5`, `efbff63` |
+| 20 | El puerto de la tienda, y por qué las colas son tres | backend | [20-puerto-de-la-tienda-y-las-tres-colas.md](20-puerto-de-la-tienda-y-las-tres-colas.md) | (esta entrega) |
 
 Mitades que van juntas: **10 ↔ 16** (origen `TIENDA` y `/callback`), **11 ↔ 16** (recomendaciones
 con motivo), **13/14 ↔ 16** (catálogo, carrito, pedidos), **15 ↔ 16** (campana SSE), **17 ↔ 16**
