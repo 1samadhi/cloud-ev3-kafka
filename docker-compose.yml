@@ -107,13 +107,17 @@ x-spring-env: &spring-env
   SPRING_DATASOURCE_PASSWORD: "${MYSQL_PASS:-123456}"
   SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
   SPRING_JPA_SHOW_SQL: "false"
-  # Los cuatro origenes desde los que un navegador llama a la API: consola y
-  # tienda, en dev (Vite) y en Docker (nginx). El CORS declara rutas concretas y
-  # no un comodin, asi que cambiar un puerto publicado obliga a cambiar esto.
+  # Los origenes desde los que un navegador llama a la API: consola y tienda, en
+  # dev (Vite) y en Docker (nginx). El CORS declara rutas concretas y no un
+  # comodin, asi que cambiar un puerto publicado obliga a cambiar esto.
   # HOST_PUBLICO es la direccion por la que el NAVEGADOR llega al sistema:
   # localhost en desarrollo, la IP publica de la EC2 en AWS. Los puertos 5173 y
   # 5174 (Vite) se dejan siempre: solo sirven en local y no estorban en AWS.
-  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://${HOST_PUBLICO:-localhost}:8090,http://${HOST_PUBLICO:-localhost}:8091"
+  # ORIGEN_TIENDA es el origen EXACTO que el navegador manda en la cabecera
+  # Origin al servir la tienda. Es una variable aparte y no "host:puerto" porque
+  # Spring compara el origen como texto: si la tienda se publica en el puerto 80
+  # el navegador manda "http://IP" SIN puerto, y "http://IP:80" no coincide.
+  CORS_ORIGENES: "http://localhost:5173,http://localhost:5174,http://${HOST_PUBLICO:-localhost}:8090,http://${HOST_PUBLICO:-localhost}:8091,${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091}"
   # La JVM respeta el mem_limit del contenedor en vez de calcular su heap sobre
   # la RAM del host (que en un contenedor no le pertenece).
   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
@@ -331,9 +335,12 @@ services:
       ANTIFRAUDE_PEPPER: "${ANTIFRAUDE_PEPPER:-pedidos360-dev}"
       # El returnUrl y los FRONT_URL los abre el NAVEGADOR, no otro contenedor:
       # tienen que ser direcciones alcanzables desde el host.
+      # FRONT_URL_TIENDA es la pagina a la que vuelve el cliente despues de
+      # pagar, asi que usa ORIGEN_TIENDA: si la tienda se publica en el puerto 80
+      # el aterrizaje tras Webpay tambien queda sin puerto en la barra.
       PAGOS_RETURN_URL: "http://${HOST_PUBLICO:-localhost}:8083/api/pagos/commit"
       FRONT_URL: "http://${HOST_PUBLICO:-localhost}:8090"
-      FRONT_URL_TIENDA: "http://${HOST_PUBLICO:-localhost}:8091"
+      FRONT_URL_TIENDA: "${ORIGEN_TIENDA:-http://${HOST_PUBLICO:-localhost}:8091}"
     depends_on:
       mysql-db: { condition: service_healthy }
       crear-topicos: { condition: service_completed_successfully }
@@ -442,7 +449,11 @@ services:
   tienda:
     build: { context: "${TIENDA_DIR:-../pedidos360-tienda}" }
     container_name: tienda
-    ports: ["8091:80"]
+    # PUERTO_TIENDA: el puerto publicado de la pagina que ve el cliente. En
+    # desarrollo 8091 (el 80 del host suele estar tomado en Windows); en AWS se
+    # pone 80 en el .env para que la URL de la demo no muestre puerto. Al
+    # cambiarlo hay que cambiar tambien ORIGEN_TIENDA (CORS y vuelta de Webpay).
+    ports: ["${PUERTO_TIENDA:-8091}:80"]
     environment:
       API_PRODUCTOS: "${API_BASE:-http://${HOST_PUBLICO:-localhost}:8086}"
       API_CARRITO: "${API_BASE:-http://${HOST_PUBLICO:-localhost}:8087}"
