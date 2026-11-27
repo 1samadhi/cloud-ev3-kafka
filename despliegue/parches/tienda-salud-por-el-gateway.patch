@@ -1,0 +1,70 @@
+diff --git a/src/config.ts b/src/config.ts
+index c3c7a6a..bf8b46f 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -31,6 +31,22 @@ export const API = {
+ 
+ export type Servicio = keyof typeof API
+ 
++/* URL de salud de un servicio.
++
++   Con un puerto por servicio (desarrollo) es su propio /actuator/health. Pero
++   detrás del API Gateway las cinco bases son LA MISMA, así que
++   `${base}/actuator/health` no distingue de quién es la salud, y además el
++   gateway no publica /actuator (responde 403 sin cabeceras CORS, que el
++   navegador cuenta como fallo de red: la insignia decía "modo demo · sin
++   backend" con los cinco servicios arriba).
++   Por eso, en modo gateway se pide /salud/<servicio>, cinco rutas explícitas
++   que el 14 declara apuntando al /actuator/health de cada puerto. */
++const unaSolaBase = () => new Set(Object.values(API)).size === 1
++
++export function urlSalud(servicio: Servicio): string {
++  return unaSolaBase() ? `${API[servicio]}/salud/${servicio}` : `${API[servicio]}/actuator/health`
++}
++
+ /* Etiqueta y puerto de cada servicio para la insignia de salud del header. */
+ export const SERVICIOS: { clave: Servicio; nombre: string }[] = [
+   { clave: 'productos', nombre: 'ms-productos' },
+diff --git a/src/hooks/useSalud.ts b/src/hooks/useSalud.ts
+index edb53c9..2924f2c 100644
+--- a/src/hooks/useSalud.ts
++++ b/src/hooks/useSalud.ts
+@@ -1,5 +1,5 @@
+ import { useCallback, useEffect, useState } from 'react'
+-import { API, SERVICIOS, type Servicio } from '../config'
++import { SERVICIOS, type Servicio } from '../config'
+ import { salud as pedirSalud } from '../lib/api'
+ import type { EstadoServicio } from '../state/contexto'
+ 
+@@ -17,7 +17,7 @@ const INICIAL = Object.fromEntries(SERVICIOS.map((s) => [s.clave, null])) as Rec
+ 
+ async function sondear(servicio: Servicio): Promise<EstadoServicio> {
+   try {
+-    const cuerpo = await pedirSalud(API[servicio])
++    const cuerpo = await pedirSalud(servicio)
+     return cuerpo.status === 'UP' ? 'arriba' : 'degradado'
+   } catch (e) {
+     const status = (e as { status?: number }).status
+diff --git a/src/lib/api.ts b/src/lib/api.ts
+index fc24fcd..cbe1f6a 100644
+--- a/src/lib/api.ts
++++ b/src/lib/api.ts
+@@ -1,4 +1,4 @@
+-import { API } from '../config'
++import { API, urlSalud, type Servicio } from '../config'
+ import type {
+   Carrito,
+   Categoria,
+@@ -100,8 +100,10 @@ const cuerpoJson = (metodo: string, body: unknown): RequestInit => ({
+ const enc = encodeURIComponent
+ 
+ /* ========================= salud (los cinco) ========================= */
+-export const salud = (base: string) =>
+-  pedir<EstadoActuator>(`${base}/actuator/health`, { signal: AbortSignal.timeout(3000) })
++/* La URL la decide config.ts: con una sola base (API Gateway) /actuator/health
++   no distingue servicios y hay que pedir /salud/<servicio>. */
++export const salud = (servicio: Servicio) =>
++  pedir<EstadoActuator>(urlSalud(servicio), { signal: AbortSignal.timeout(3000) })
+ 
+ /* ========================= ms-productos :8086 ========================= */
+ export type FiltroCatalogo = { categoria?: string; q?: string; orden?: OrdenCatalogo }

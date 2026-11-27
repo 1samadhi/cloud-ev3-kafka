@@ -27,6 +27,16 @@ Lo que se haga desde `PENDIENTES.md` va acá hasta la entrega, que se etiqueta `
 - `infra/prueba-identidad.py`: 401/200, preflight, suplantación, compra completa y antifraude, todo
   por el gateway.
 - Cinco rutas `/salud/<servicio>` en el gateway, para la insignia de salud de la tienda.
+- `despliegue/parches/tienda-salud-por-el-gateway.patch`: el cambio de la insignia de salud
+  (pedir `/salud/<servicio>` cuando hay una sola base) **aislado de Cognito**, para poder
+  apuntar la tienda al gateway en un lab que no tiene user pool. Aplicable sobre `main` de
+  `pedidos360-tienda`; compila con `tsc -b` + `vite build`.
+- `despliegue/plantilla-compose-override.yml`: bloque `tienda` con las cinco `API_*` hacia el
+  stage, y la explicación de por qué la consola se queda en los puertos directos.
+- `evidencias/58`: la tienda entera por el gateway en el **lab de Ismael** (cuenta
+  471112736485, gateway `khca9i6w62`) — 35 rutas sin fallos, CORS por origen concreto, 27
+  llamadas al gateway y 0 a `localhost` medidas en el navegador, y la prueba de humo 25/25
+  después del cambio.
 
 ### Cambiado
 

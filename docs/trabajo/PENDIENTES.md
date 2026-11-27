@@ -13,7 +13,7 @@ Son requisitos de la entrega, no mejoras opcionales.
 
 | | Observación | Estado |
 |---|---|---|
-| F1 | **API Gateway para el frontend** | ✅ `despliegue/14-rutas-frontend-ev3.sh`: 35 rutas y `API_BASE` **puesto en el `.env` de la instancia y verificado en el navegador** el 27-11 (`evidencias/56`). El contrato `/v1` del `10`/`12` no le servía al navegador (ver cabecera del `14`). La **tienda** entra entera por el gateway; la **consola** sigue directa (usa rutas de administración que el `14` no publica) |
+| F1 | **API Gateway para el frontend** | ✅ `despliegue/14-rutas-frontend-ev3.sh`: 35 rutas y `API_BASE` **puesto en el `.env` de la instancia y verificado en el navegador** el 27-11 (`evidencias/56`). El contrato `/v1` del `10`/`12` no le servía al navegador (ver cabecera del `14`). La **tienda** entra entera por el gateway; la **consola** sigue directa (usa rutas de administración que el `14` no publica). **También cerrado en el lab de Ismael** el 27-11 (`evidencias/58`): las mismas 35 rutas, override en vez de `.env`, y el commit de la insignia de salud extraído sin Cognito (`despliegue/parches/tienda-salud-por-el-gateway.patch`) |
 | F2 | **No usar proxy en backend** | ✅ ya estaba: ningún `proxy_pass` en los dos `nginx.conf`, que citan la observación |
 | F3 | **CORS con la ruta de la API del frontend** | ✅ el gateway reenvía `Origin` y devuelve la respuesta CORS del servicio; sin comodín `*`. Desde el `15`, también en las respuestas de error |
 | F4 | **Todas las colas deben funcionar** | ✅ `evidencias/55`: las tres colas con mensajes reales. Los 4 DLT de Kafka, en `evidencias/51` |

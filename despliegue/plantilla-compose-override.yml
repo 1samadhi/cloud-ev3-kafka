@@ -38,6 +38,26 @@
 #
 #    Requisito: el metadata de EC2 necesita hop limit 2 para ser alcanzable
 #    desde un contenedor. Lo deja listo 00-preparar-entorno.sh.
+#
+# 3) Las API_* de la TIENDA apuntando al API Gateway
+#    Es la observacion F1 del docente en la EV2 ("API Gateway para el
+#    frontend"). El compose base deja un puerto por servicio, que es lo
+#    correcto en local; en AWS eso significa que el navegador del visitante
+#    pide los datos a SU PROPIA maquina, asi que la pagina carga y no muestra
+#    nada ("ms-productos no responde"). El entrypoint de la tienda genera
+#    config.js al arrancar con estas variables, asi que basta recrear el
+#    contenedor: no hay que reconstruir la imagen.
+#
+#    Con UNA SOLA base, /actuator/health no distingue de quien es la salud y
+#    el gateway no publica /actuator (403 sin cabeceras CORS, que el navegador
+#    cuenta como fallo de red): la insignia de la tienda diria "modo demo ·
+#    sin backend" con todo sano. Por eso hace falta tambien el parche
+#    despliegue/parches/tienda-salud-por-el-gateway.patch, que en modo
+#    gateway pide /salud/<servicio> — las cinco rutas que declara el 14.
+#
+#    La CONSOLA se deja a proposito en los puertos directos: usa rutas de
+#    administracion que el 14 no publica (PUT de configuracion de topicos,
+#    aumentar particiones, reset de offsets, crear/borrar colas).
 # ---------------------------------------------------------------------------
 
 services:
@@ -80,3 +100,17 @@ services:
   ms-rabbit-admin:
     environment:
       CORS_ORIGENES: "http://TU_IP_PUBLICA:8090,http://TU_IP_PUBLICA:8091,http://localhost:5173"
+
+  # La tienda, por el API Gateway (F1). URL_DEL_STAGE es la que imprime
+  # despliegue/14-rutas-frontend-ev3.sh al terminar, por ejemplo
+  #   https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/desarrollo
+  # Las cinco apuntan a LA MISMA base: el recurso lo decide la ruta. Despues:
+  #   docker compose up -d --no-deps tienda
+  #   curl -s http://TU_IP_PUBLICA:8091/config.js   # debe mostrar el stage
+  tienda:
+    environment:
+      API_PRODUCTOS: "URL_DEL_STAGE"
+      API_CARRITO: "URL_DEL_STAGE"
+      API_PAGOS: "URL_DEL_STAGE"
+      API_RECOMENDACIONES: "URL_DEL_STAGE"
+      API_NOTIFICACIONES: "URL_DEL_STAGE"

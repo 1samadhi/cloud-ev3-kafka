@@ -1,6 +1,12 @@
 # Estado del despliegue en AWS — EV3 Pedidos360
 
-Ultima actualizacion: 2026-11-23 16:16 (-03)
+Ultima actualizacion: 2026-11-27 12:55 (-03)
+
+> Hay **dos** despliegues y este es el de **Ismael**. El de Diego
+> (`ESTADO-DESPLIEGUE-DIEGO.md`, cuenta 851725287694, IP 18.211.30.140) es el que lleva
+> **Cognito** y es el principal para la demo. Lo verificado en una cuenta **no es evidencia de
+> la otra**: los recursos (gateway, user pool, Elastic IP) son por cuenta; el codigo y los
+> scripts, en cambio, son los mismos y viven en git.
 
 ## Donde esta todo
 
@@ -11,7 +17,7 @@ Ultima actualizacion: 2026-11-23 16:16 (-03)
 | Instancia | `i-0bdac4ec3cb93f53c` · **t3.large** (7,8 GB) · disco 50 GB |
 | IP | **44.208.92.186** — fija, por Elastic IP: no cambia al apagar y prender |
 | API Gateway | `https://khca9i6w62.execute-api.us-east-1.amazonaws.com/desarrollo` |
-| Repo backend | commit `95ec1af` en master |
+| Repo backend | `6e56d17` en master (local). **La instancia esta en `95ec1af`**: los cambios del 27-11 se aplicaron por override y parche, sin `git pull`, para no rearmar el stack el dia de la entrega |
 
 ### Puertos
 
@@ -30,9 +36,21 @@ Ultima actualizacion: 2026-11-23 16:16 (-03)
 
 ## Verificado en AWS
 
-- **Prueba de humo**: 25/25 (catalogo, interacciones, recomendaciones, carrito, pedido, pago, notificaciones, antifraude, metricas, administracion).
-- **API Gateway**: 22 rutas, una por una, **sin `{proxy+}`**. Compra completa por el gateway.
-- **CORS**: `access-control-allow-origin` presente; preflight `OPTIONS` responde 200.
+- **La tienda entra entera por el API Gateway** (F1 de la EV2), 27-11: **35 rutas** `/api/*` y
+  `/salud/*` declaradas una por una con `despliegue/14-rutas-frontend-ev3.sh`, 0 fallos; 20 de
+  ellas medidas por el stage con el `Origin` de la tienda, todas 200 y **con cuerpo real** (20
+  productos, 8 categorias, la query `userId` llegando). En el navegador: insignia **"backend
+  conectado"**, catalogo completo y **27 llamadas al gateway, 0 a localhost**. La **consola**
+  sigue directa a proposito. Evidencia: `evidencias/58`.
+- **CORS por origen concreto, no comodin** (F3): el gateway reenvia `Origin` y devuelve la
+  respuesta de Spring. El origen de la tienda recibe `access-control-allow-origin` con su valor
+  exacto; un origen ajeno se queda **sin cabeceras**. Preflight `OPTIONS` 200 tambien en rutas
+  con `{id}`.
+- **Prueba de humo**: 25/25 (catalogo, interacciones, recomendaciones, carrito, pedido, pago,
+  notificaciones, antifraude, metricas, administracion). Re-corrida el 27-11 tras el cambio.
+- **API Gateway**: **sin `{proxy+}`** — cada recurso, metodo, parametro de ruta, query string y
+  cabecera declarados uno por uno. Las 23 rutas `/v1` quedaron **superadas** por las `/api/*`
+  (ver `docs/trabajo/PENDIENTES.md`: siete de las `/v1` responden 500 y no las usa nadie).
 - **DLT**: dos mensajes defectuosos terminan en `pagos-resultado.DLT` con causas distinguidas (`JsonParseException` inmediato, `InvalidFormatException` tras reintento).
 - **DynamoDB real** (+2): tablas `HistorialEventos`, `RecomendacionesUsuario` y `EventosOperaciones-desarrollo` (con stream NEW_IMAGE). Sin credenciales en el contenedor: usa el rol de la instancia.
 - **WebSocket** (+3): handshake 101 desde el origen autorizado, 403 desde uno ajeno, y snapshots con valores que cambian.
@@ -43,17 +61,19 @@ Evidencias en `evidencias/50` a `54`.
 ## Cosas que hay que saber para no romperlo
 
 1. **Credenciales**: vencen en ~1 hora. Recargar con `~/.hermes/duoc/aws-cred.sh` (lee el portapapeles). Los contenedores NO dependen de ellas: usan el rol de la instancia.
-2. **`docker-compose.override.yml`** (en la instancia, no en git) corrige dos cosas del compose base: `CORS_ORIGENES`, que esta fijado a localhost y en AWS rechaza al propio front, y el endpoint de DynamoDB.
-3. **Metadata de EC2**: necesita `HttpPutResponseHopLimit` en 2 para ser alcanzable desde un contenedor. Ya esta puesto.
-4. **API Gateway**: el valor de una cabecera estatica debe pasarse por **archivo JSON** (`file://`). Con la forma `clave=valor` la CLI se come las comillas simples y rechaza el mapeo.
-5. **Propagacion**: tras `create-deployment` el stage tarda hasta un minuto. Un 403 o 500 recien publicado suele ser eso; `test-invoke-method` prueba la configuracion sin pasar por el stage.
-6. **Entorno de la instancia**: buildx se actualizo a 0.19.3 (el 0.12 no soporta `compose build`) y se instalo Python 3.11 (la prueba de humo usa `str | None`, que 3.9 no entiende).
+2. **`docker-compose.override.yml`** (en la instancia, no en git; plantilla en `despliegue/plantilla-compose-override.yml`) corrige tres cosas del compose base: `CORS_ORIGENES`, que esta fijado a localhost y en AWS rechaza al propio front; el endpoint de DynamoDB; y las cinco `API_*` de la **tienda**, que apuntan al stage del gateway. **Si la tienda carga pero no muestra datos, lo primero que hay que mirar es esto**: `curl -s http://44.208.92.186:8091/config.js` tiene que mostrar la URL del stage, no `localhost`.
+3. **La tienda lleva un parche sin commit** en la instancia (`despliegue/parches/tienda-salud-por-el-gateway.patch`): con una sola base, la insignia pide `/salud/<servicio>`. Sin el parche, la cabecera dice "modo demo · sin backend" con los 21 contenedores sanos, porque el gateway no publica `/actuator` y responde 403 sin cabeceras CORS. Si se recrea la instancia, hay que volver a aplicarlo y **reconstruir** la imagen (`docker compose build tienda`), que para eso va en git.
+4. **Metadata de EC2**: necesita `HttpPutResponseHopLimit` en 2 para ser alcanzable desde un contenedor. Ya esta puesto.
+5. **API Gateway**: el valor de una cabecera estatica debe pasarse por **archivo JSON** (`file://`). Con la forma `clave=valor` la CLI se come las comillas simples y rechaza el mapeo.
+6. **Propagacion**: tras `create-deployment` el stage tarda hasta un minuto. Un 403 o 500 recien publicado suele ser eso; `test-invoke-method` prueba la configuracion sin pasar por el stage.
+7. **Entorno de la instancia**: buildx se actualizo a 0.19.3 (el 0.12 no soporta `compose build`) y se instalo Python 3.11 (la prueba de humo usa `str | None`, que 3.9 no entiende).
 
 ## Pendiente
 
 | | Que falta |
 |---|---|
-| P6 | Evidencia de un pago **Webpay real** aprobado (+5) |
-| P4 | Login con Cognito + filtro JWT |
-| P3 | Terraform de la Lambda de telemetria — ojo: el lab no deja crear roles IAM, viene `LabRole` dado |
-| — | Ensayar la demo y preparar el informe |
+| P6 | Evidencia de un pago **Webpay real** aprobado (+5) — **hecha en el lab de Diego** (`evidencias/57`, pedido `P-17`), no en este |
+| P4 | Login con Cognito + filtro JWT — **hecho en el lab de Diego**. En esta cuenta **no hay user pool ni authorizer**: las 11 operaciones que alla piden token, aca estan abiertas. Los scripts para aplicarlo estan en git (`16`, `17`, `18`) y la tienda necesitaria la rama `p4-cognito` en vez del parche de salud |
+| P3 | Terraform de la Lambda de telemetria — ojo: el lab no deja crear roles IAM, viene `LabRole` dado. Cerrado en `PENDIENTES.md`: la pauta no lo exige |
+| — | Ensayar la demo y preparar el informe (P7) |
+| — | Compra completa **tecleada en el navegador** por el gateway: las rutas responden y la prueba de humo pasa, pero el recorrido a mano no se hizo en esta cuenta |
