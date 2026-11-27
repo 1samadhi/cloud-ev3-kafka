@@ -169,9 +169,11 @@ regenerarlas si cambia el catálogo.
   lo que hace la tienda (`SignUp` + `InitiateAuth` sobre `fetch`), pero nadie ha
   escrito todavía correo y contraseña en
   `http://18.211.30.140:8091/ingresar` → pestaña *Crear cuenta*.
-- **Un pago Webpay aprobado** sigue sin evidencia (P6): se verificó la anulación
-  de punta a punta y el pago por la pasarela simulada, no el AUTHORIZED tecleando
-  la tarjeta de prueba en Transbank.
+- **Un pago Webpay aprobado**: ya no es pendiente. Se cerró el mismo 27-11 con el
+  pedido `P-17` (`pasarela=WEBPAY`, `Pago Webpay AUTORIZADO`), evidencia en
+  `evidencias/57-pago-aprobado-20261127-0346.md` y verificador
+  `infra/prueba-pago-aprobado.py`. Lo que sigue faltando son las **capturas** del
+  `/callback` y de "Mis pedidos".
 - **El mensaje de contraseña débil no siempre es el específico.** Una contraseña
   **corta** la rechaza Cognito con `InvalidParameterException`, no con
   `InvalidPasswordException`, así que el usuario ve "Revisa el correo y la

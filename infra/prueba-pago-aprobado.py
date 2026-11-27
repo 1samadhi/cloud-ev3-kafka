@@ -144,7 +144,12 @@ def pasarela_en_logs(orden):
     # El `aws` del PATH en Windows es un wrapper bash: desde Python nativo hay
     # que invocar el interprete (misma trampa que en el doc 18).
     aws = [sys.executable, "-m", "awscli"]
-    cmd = ('docker logs ms-pago --since 2h 2>&1 | grep -E "orden=%s( |$)" | tail -20' % orden)
+    # (orden|key): "Iniciar pago" y "Pasarela ..." traen orden=<id>, pero la
+    # linea que prueba la publicacion en Kafka ("Resultado publicado
+    # topico=pagos-resultado") usa key=<id>. Con solo orden= esa linea se
+    # pierde, y la evidencia citaba una linea que no estaba en su propio
+    # bloque de log.
+    cmd = ('docker logs ms-pago --since 2h 2>&1 | grep -E "(orden|key)=%s( |$)" | tail -20' % orden)
     try:
         cid = subprocess.run(
             aws + ["ssm", "send-command", "--region", region, "--instance-ids", inst,
@@ -256,10 +261,18 @@ comprobar("el total es coherente",
 print("\nQue pasarela cobro: Webpay o la simulada (log de ms-pago en la EC2)")
 log_pago, err_log = pasarela_en_logs(pid)
 es_webpay = bool(log_pago) and "pasarela=WEBPAY" in log_pago
+publicado = bool(log_pago) and "topico=pagos-resultado" in log_pago
+if es_webpay:
+    razon = "el log dice pasarela=WEBPAY"
+elif log_pago:
+    razon = "pasarela=SIMULADA en el log: esto NO cierra P6"
+else:
+    razon = err_log or "sin lineas para orden=%s" % pid
 comprobar("el cobro paso por WEBPAY (Transbank), no por la pasarela simulada",
-          es_webpay,
-          ("pasarela=SIMULADA en el log: esto NO cierra P6" if log_pago and not es_webpay
-           else (err_log or "sin lineas para orden=%s" % pid)))
+          es_webpay, razon)
+comprobar("el resultado se publico en el topico pagos-resultado", publicado,
+          "linea 'Resultado publicado topico=pagos-resultado' presente" if publicado
+          else "no aparece en el log de ms-pago")
 if log_pago:
     for linea in [l for l in log_pago.splitlines() if "pasarela=" in l or "Pasarela" in l][:4]:
         print("      | %s" % linea.strip()[:150])
@@ -315,6 +328,8 @@ with open(ruta, "w", encoding="utf-8") as f:
     f.write("| Notificacion `PEDIDO_PAGADO` por RabbitMQ | %s |\n"
             % ("**llego**: " + str(notif.get("titulo") or notif.get("mensaje"))
                if notif else "**NO llego**"))
+    f.write("| Resultado publicado en el topico `pagos-resultado` | %s |\n"
+            % ("**si**, con `estado=AUTORIZADO`" if publicado else "**no aparece en el log**"))
     if fallos:
         f.write("\n## Fallos\n\n")
         for x in fallos:
@@ -330,10 +345,12 @@ with open(ruta, "w", encoding="utf-8") as f:
     f.write("\n## No verificado\n\n")
     f.write("- La captura de pantalla del `/callback?estado=AUTHORIZED...` y de\n"
             "  \"Mis pedidos\" se toma a mano y va en `evidencias/ev3-docker/`.\n")
-    f.write("- Que el evento viajara por el topico `pagos-resultado` se deduce de que\n"
-            "  el pedido quedo pagado (solo ese consumidor lo cambia) y de la linea\n"
-            "  `Resultado publicado topico=pagos-resultado` del log; no se leyo el\n"
-            "  topico directamente.\n")
+    f.write("- **El consumo** del evento no se observo directamente: que ms-carrito\n"
+            "  leyera `pagos-resultado` se deduce de que el pedido paso a PAGADO (solo\n"
+            "  ese consumidor lo cambia). La publicacion si esta en el log.\n")
+    f.write("- El antifraude no participa con WEBPAY: Transbank no entrega la tarjeta\n"
+            "  antes del pago, asi que la regla por huella se demuestra con la pasarela\n"
+            "  SIMULADA (ver el paso 5 del guion de P7).\n")
 
 print("\nEvidencia escrita en: %s" % ruta)
 print("\n" + ("TODO OK" if not fallos else "FALLARON %d: %s" % (len(fallos), ", ".join(fallos))))

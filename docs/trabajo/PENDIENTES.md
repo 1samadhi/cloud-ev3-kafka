@@ -27,12 +27,15 @@ Son requisitos de la entrega, no mejoras opcionales.
 | P3 | Terraform de telemetría en el Learner Lab | cloud-ev3-kafka | — | — | ✅ **cerrado**: la pauta no exige Terraform y el +2 y el +3 ya están evidenciados (`evidencias/52`, `53`) |
 | P4 | Login con Cognito + filtro JWT | los tres | baja | 5–8 h | ✅ **hecho** en la **tienda** (doc `18`, `evidencias/56`): user pool real, el rol sale de `cognito:groups` y el **API Gateway** valida el JWT y reescribe `X-Usuario-Id` con el claim, así que los 7 servicios no cambiaron. Falta en la **consola** (va con P1) |
 | P5 | Panel admin de la tienda: ingresos que no cuadran | ambos | — | — | ✅ hecho (`evidencias/54`) |
-| P6 | Evidencia de un pago Webpay **aprobado** | — | **alta**, 5 min | 5 min | **abierto** · cualquiera |
+| P6 | Evidencia de un pago Webpay **aprobado** | — | — | — | ✅ **hecho** (`evidencias/57`): pedido `P-17`, `pasarela=WEBPAY`, `Pago Webpay AUTORIZADO`, publicado en `pagos-resultado` y notificación `pedido.pagado` recibida |
 | P7 | Ensayo de la demo y evidencias de fallos | — | **alta** | 2 h | **abierto** · los dos |
 | P8 | Doce avisos de lint en la tienda | pedidos360-tienda | baja | 1 h | **abierto** |
 | P9 | Defectos conocidos (pedidos que nunca vencen, carrera del 4.º intento…) | backend | media | 2–4 h | **abierto** · Diego |
 
-Lo que queda: **P1**, **P6** y **P7**. Si falta tiempo se recorta P8 → P9. P6 y P7 no se recortan.
+Lo que queda: **P1** y **P7**. Si falta tiempo se recorta P8 → P9. P7 no se recorta: de sus
+nueve pasos, 1–5 los cubre mostrar la tienda en vivo, pero **6, 7 y 9** (mensaje defectuoso al
+DLT, fallo controlado de `ms-notificaciones`, `docker stop kafka2`) son evidencia que no se ve
+navegando y que respaldan los criterios 6 y RF 3.
 
 Al cerrar P4 apareció trabajo nuevo, chico pero real: la consola sigue entrando por los puertos
 directos (necesita rutas de administración que el `14` no publica) y no tiene pantalla de ingreso,
@@ -184,15 +187,28 @@ salgan de la misma base (lo recomendable: precio cobrado por
 línea, prorrateando el descuento) o rotular cada una para que se entienda la diferencia.
 Agregar una prueba que fije la suma.
 
-## P6 · Evidencia de un pago Webpay aprobado
+## P6 · Evidencia de un pago Webpay aprobado — ✅ cerrado el 27-11
 
-Se verificó la anulación de punta a punta, pero no un pago aprobado: hay que tipear la tarjeta
-de prueba en la página de Transbank.
+Hecho en AWS (`18.211.30.140`, por el gateway, sesión de `ana@correo.cl`). La tarjeta se tecleó
+a mano en la página de Transbank; todo lo demás lo verifica `infra/prueba-pago-aprobado.py`
+(9 comprobaciones, **TODO OK**). Evidencia: `evidencias/57-pago-aprobado-20261127-0346.md`.
 
-En la tienda (:8091), comprar cualquier producto con **Webpay Plus** → tarjeta
-`4051 8856 0044 6623`, CVV `123`, RUT `11.111.111-1`, clave `123`. Debe volver a
-`/callback?estado=AUTHORIZED…`, el pedido debe quedar **PAGADO** en "Mis pedidos" y debe
-llegar la notificación `pedido.pagado`. Capturas en `evidencias/ev3-docker/`.
+| | |
+|---|---|
+| Pedido | `P-17`, Switch OLED, $329.990, retiro en tienda |
+| Pasarela | **`pasarela=WEBPAY`** y `Pago Webpay AUTORIZADO: orden=P-17` en el log de ms-pago |
+| Kafka | `Resultado publicado topico=pagos-resultado … key=P-17 estado=AUTORIZADO pasarela=WEBPAY` |
+| Pedido | `PENDIENTE_PAGO → PAGADO → PREPARANDO → LISTO_RETIRO → RETIRADO`, `codigoAutorizacion` 1213 |
+| RabbitMQ | notificación `pedido.pagado` — "Recibimos el pago de tu pedido P-17 por $329.990" |
+
+Falta sólo lo que no se automatiza: las **capturas** del `/callback?estado=AUTHORIZED…` y de
+"Mis pedidos", en `evidencias/ev3-docker/`.
+
+**Lo que destapó, y conviene saber antes de repetirlo**: `codigoAutorizacion` lo dejan **las dos**
+pasarelas (también la SIMULADA) y `PedidoDTO` no guarda cuál cobró, así que **un pedido con código
+de autorización no es evidencia de Webpay**. La única fuente que los distingue es el log de
+ms-pago. Por eso el intento anterior (`P-16`, con código 796619 y hasta ENTREGADO) parecía cerrar
+P6 y no lo cerraba: era `pasarela=SIMULADA`. Está anotado en P9.
 
 ## P7 · Ensayo de la demo y evidencias de fallos
 
@@ -238,6 +254,7 @@ flujo de la demo; los dos primeros pueden aparecer si alguien pregunta "¿y si�
 | Defecto | Efecto | Dónde | Doc |
 |---|---|---|---|
 | `PENDIENTE_PAGO` nunca vence | un 429, un 503 o un pago abandonado sin vuelta de Webpay dejan el pedido pendiente y **el stock reservado para siempre** | ms-carrito: falta un `@Scheduled` que libere reservas viejas (p. ej. 15 min) | 14 |
+| El pedido no guarda **qué pasarela** cobró | `codigoAutorizacion` lo dejan WEBPAY y SIMULADA por igual, así que desde el pedido no se puede probar que un pago pasó por Transbank: hay que leer el log de ms-pago. Costó dar P6 por cerrado de más (ver P6) | `PedidoDTO`/`Pedido` en ms-carrito: falta el campo `pasarela`, que ya viaja en el evento `pagos-resultado` | 19 |
 | Ráfaga simultánea: el 4.º puede pasar | el HTTP anticipa el bloqueo leyendo lo que el consumidor ya procesó; 4 intentos en el mismo milisegundo pueden dar 4 × 200 (el consumidor igual bloquea y alerta) | ms-pago `ServicioPagos` | 10 |
 | Nunca se publica `ERROR` en `pagos-resultado` | todo lo que no es AUTHORIZED sale como `RECHAZADO` | ms-pago `PagosController` / commit | 10 |
 | `x-delivery-limit` fijo en ms-carrito y configurable en ms-notificaciones | si se cambia en uno solo, el broker rechaza la redeclaración (`PRECONDITION_FAILED`) | ms-carrito `RabbitConfig` | 14, 15 |
