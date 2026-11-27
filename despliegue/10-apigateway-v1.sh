@@ -49,6 +49,11 @@ export AWS_PAGER=""
 NOMBRE_API="pedidos360-v1"
 STAGE="desarrollo"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+# El AWS CLI de Windows es un binario NATIVO: no entiende las rutas MSYS que
+# devuelve mktemp (/tmp/...) y los file:// de abajo fallan con "Unable to load
+# paramfile". cygpath -m da el equivalente C:/... con barras normales; en Linux,
+# donde se escribio este script, cygpath no existe y se usa la ruta tal cual.
+TMP_URL=$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")
 
 log(){ printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 ok(){  printf '    \033[1;32mOK\033[0m %s\n' "$*"; }
@@ -115,7 +120,7 @@ ruta(){   # $1 id recurso, $2 verbo, $3 url destino, $4 etiqueta
   fi
   if ! e=$(aws apigateway put-method-response --region "$REGION" --rest-api-id "$API" \
         --resource-id "$rec" --http-method "$verbo" --status-code 200 \
-        --response-parameters "file://$TMP/cors-metodo.json" 2>&1); then
+        --response-parameters "file://$TMP_URL/cors-metodo.json" 2>&1); then
     err "$etiqueta method-response: $(head -c 90 <<< "$e")"; FALLOS+=1; return
   fi
   # Sin integration-response por defecto, API Gateway devuelve 500 con
@@ -123,7 +128,7 @@ ruta(){   # $1 id recurso, $2 verbo, $3 url destino, $4 etiqueta
   # aunque el backend haya respondido 200 correctamente.
   if ! e=$(aws apigateway put-integration-response --region "$REGION" --rest-api-id "$API" \
         --resource-id "$rec" --http-method "$verbo" --status-code 200 \
-        --response-parameters "file://$TMP/cors-integracion.json" 2>&1); then
+        --response-parameters "file://$TMP_URL/cors-integracion.json" 2>&1); then
     err "$etiqueta integration-response: $(head -c 90 <<< "$e")"; FALLOS+=1; return
   fi
   printf '    %-5s %-26s -> %s\n' "$verbo" "$etiqueta" "${destino#http://}"
@@ -143,10 +148,10 @@ JSON
     --request-templates '{"application/json":"{\"statusCode\": 200}"}' >/dev/null
   aws apigateway put-method-response --region "$REGION" --rest-api-id "$API" \
     --resource-id "$rec" --http-method OPTIONS --status-code 200 \
-    --response-parameters "file://$TMP/pre-metodo.json" >/dev/null
+    --response-parameters "file://$TMP_URL/pre-metodo.json" >/dev/null
   if ! e=$(aws apigateway put-integration-response --region "$REGION" --rest-api-id "$API" \
         --resource-id "$rec" --http-method OPTIONS --status-code 200 \
-        --response-parameters "file://$TMP/pre-int.json" 2>&1); then
+        --response-parameters "file://$TMP_URL/pre-int.json" 2>&1); then
     err "preflight: $(head -c 90 <<< "$e")"; FALLOS+=1
   fi
 }

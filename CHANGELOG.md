@@ -16,6 +16,38 @@ El sistema son tres repos que se despliegan juntos. Estas versiones están proba
 
 Lo que se haga desde `PENDIENTES.md` va acá hasta la entrega, que se etiqueta `v3.0.0`.
 
+### Agregado
+
+- **Identidad con Cognito validada en el borde** (doc `18`, `evidencias/56`). User pool reproducible
+  con `despliegue/17-cognito-pool.sh`, authorizer `COGNITO_USER_POOLS` en 11 operaciones con
+  `despliegue/16-cognito-authorizer.sh`, y la tienda pidiendo el ID token sin SDK. El gateway
+  reescribe `X-Usuario-Id` con `claims.email`: **los siete microservicios no cambiaron**, pero la
+  cabecera dejó de ser falsificable. Cierra P4 en la tienda.
+- `despliegue/15-respuestas-de-error.sh`: respuestas de error por código en las rutas del gateway.
+- `infra/prueba-identidad.py`: 401/200, preflight, suplantación, compra completa y antifraude, todo
+  por el gateway.
+- Cinco rutas `/salud/<servicio>` en el gateway, para la insignia de salud de la tienda.
+
+### Cambiado
+
+- `docker-compose.yml` y `.env.example`: `COGNITO_REGION`, `COGNITO_CLIENT_ID` y `COGNITO_POOL_ID`
+  como configuración de arranque. Con las tres vacías, local queda idéntico.
+- `despliegue/14-rutas-frontend-ev3.sh`: 35 rutas (eran 29). Se agregaron los seis métodos que la
+  tienda usa de verdad y que no estaban publicados, el filtro `SOLO_RUTA` y la idempotencia de
+  `put-method`.
+
+### Corregido
+
+- **El gateway aplastaba todos los códigos de error a 200**, así que el 429 del antifraude llegaba
+  al navegador como 200 y la tienda mostraba "Respuesta inesperada (HTTP 200)" en vez del bloqueo.
+- **Seis métodos sin publicar** (`PATCH /api/carrito/items/{id}`, `DELETE /api/carrito`,
+  `DELETE /api/carrito/cupon`, `PUT /api/carrito/envio`, `PUT /api/productos/{id}/stock`,
+  `GET /api/productos/admin/stock`): daban 403 y uno de ellos es un paso del checkout.
+- **La insignia de la tienda decía "modo demo · sin backend"** detrás del gateway, con los 21
+  contenedores sanos: `/actuator/health` no se publica y el 403 sin CORS cuenta como fallo de red.
+- `API_BASE` no estaba en el `.env` de la instancia: la tienda iba a los puertos directos y F1 no
+  estaba activo aunque la documentación lo diera por hecho.
+
 ## [3.0.0-rc.1] — 2026-11-22
 
 Integración completa de la EV3: siete microservicios sobre Kafka, RabbitMQ y REST, levantados

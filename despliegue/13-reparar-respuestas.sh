@@ -31,6 +31,11 @@ ESTADO="$AQUI/.ev3-estado.env"
 export AWS_PAGER=""
 
 TMP="$(mktemp -d)"
+# El AWS CLI de Windows es un binario NATIVO: no entiende las rutas MSYS que
+# devuelve mktemp (/tmp/...) y los file:// de abajo fallan con "Unable to load
+# paramfile". cygpath -m da el equivalente C:/... con barras normales; en Linux,
+# donde se escribio este script, cygpath no existe y se usa la ruta tal cual.
+TMP_URL="$(cygpath -m "$TMP" 2>/dev/null || echo "$TMP")"
 trap 'rm -rf "$TMP"' EXIT
 
 # Los dos mapeos, en archivos, que es lo que preserva las comillas.
@@ -69,10 +74,10 @@ while IFS=$'\t' read -r RID RUTA METODO; do
   fi
 
   if [ "$METODO" = "OPTIONS" ]; then
-    PARAMS="file://$TMP/preflight.json"
+    PARAMS="file://$TMP_URL/preflight.json"
     RESP='{"method.response.header.Access-Control-Allow-Origin":false,"method.response.header.Access-Control-Allow-Methods":false,"method.response.header.Access-Control-Allow-Headers":false}'
   else
-    PARAMS="file://$TMP/cors.json"
+    PARAMS="file://$TMP_URL/cors.json"
     RESP='{"method.response.header.Access-Control-Allow-Origin":false}'
   fi
 

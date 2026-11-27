@@ -1,5 +1,11 @@
 # Guía de defensa — EV3 Pedidos360
 
+> ⚠️ **Este documento lo escribió Ismael, desde su lab.** Habla de la IP
+> `44.208.92.186`, el gateway `khca9i6w62`, 22 rutas `/v1`, "DynamoDB real" y
+> "Cognito no implementado": **nada de eso es el despliegue de Diego**. Las dos
+> secciones sobre las colas y los puertos (27-11) sí están medidas en el de Diego.
+> Para estudiar la demo de Diego: **`KIT-ESTUDIO-EV3.md`**.
+
 Para estudiar antes de presentar. Las respuestas están en el orden en que es
 probable que las preguntas aparezcan, y cada una dice **dónde mirar** si querés
 el detalle.
@@ -152,6 +158,31 @@ La prueba de humo recorre las nueve etapas del flujo y da **25/25**.
 
 ---
 
+### «¿No sobra una cola? ¿Para qué tres?»
+
+Medido en el broker de la demo (27-11, 07:30):
+
+```
+docker exec rabbitmq1 rabbitmqctl list_queues name type messages consumers
+notificaciones.cliente       quorum   0   1
+notificaciones.auditoria     quorum   0   1
+notificaciones.cliente.dlq   quorum   0   1
+```
+
+Las tres tienen **un consumidor** y un papel distinto. Ninguna está huérfana:
+
+| Cola | Binding | Para qué | Qué se pierde sin ella |
+|---|---|---|---|
+| `notificaciones.cliente` | `carrito.*`, `pedido.*`, `envio.*` | la cola de trabajo: persiste la notificación y la empuja al navegador por SSE | el producto |
+| `notificaciones.auditoria` | `#` | registra **todo** lo que pasa por el exchange, incluido lo mal formado (recibe el `Message` crudo, no el DTO) | la prueba de que el exchange es **topic** y no una cola directa: el mismo mensaje llega a dos colas con patrones distintos y el productor no sabe cuántas hay. Y el log de lo que la cola cliente rechaza |
+| `notificaciones.cliente.dlq` | `pedidos360.notificaciones.dlx` (fanout) | mensajes muertos, con los headers `x-death` (cola de origen, motivo, conteo) guardados en `mensaje_fallido` | el criterio de DLQ con logs |
+
+Dicho corto: **una entrega, una audita y una recoge lo que murió.** La de
+auditoría es la que *parece* sobrar porque duplica el tráfico, y es justamente
+la que demuestra el enrutamiento por patrón del exchange topic.
+
+---
+
 ### «¿Dónde está el CORS?»
 
 En dos lugares, y el segundo es el que casi nadie muestra:
@@ -166,6 +197,38 @@ En dos lugares, y el segundo es el que casi nadie muestra:
 
 Ese 403 lo podés mostrar en vivo y es contundente: impide que una página ajena
 abierta en el navegador del operador lea las métricas.
+
+---
+
+### «Se ven los puertos en las páginas»
+
+Son dos cosas distintas y conviene separarlas antes de responder:
+
+1. **Las llamadas de la aplicación**: ninguna lleva puerto. La tienda entra
+   entera por una sola dirección, y se demuestra en 5 segundos:
+   ```bash
+   curl -s http://18.211.30.140:8091/config.js
+   # las 5 API -> https://vih5lem02j.execute-api.us-east-1.amazonaws.com/desarrollo
+   ```
+   o con F12 → *Network* mientras se navega: todas las peticiones van al
+   gateway. Eso es F1 de la EV2, y es lo que la observación pedía.
+
+2. **La URL de la página**, que sí muestra `:8091`. Ese es el puerto donde la
+   EC2 publica el nginx que sirve la tienda — no es una llamada a la API.
+
+Se intentó quitarlo publicando la tienda en el puerto 80 (`http://18.211.30.140`,
+27-11 de madrugada). **Del lado del servidor funciona**: `curl` responde 200,
+CORS devuelve `Access-Control-Allow-Origin: http://18.211.30.140` y la prueba de
+humo da TODO OK. **Pero los navegadores no abren la página**: la navegación a
+`http://<IP>` sin puerto falla en Brave y en Chromium (`ERR_BLOCKED_BY_CLIENT`),
+mientras que un `fetch` a esa misma dirección desde la consola del navegador sí
+conecta. Con un puerto no estándar, como `:8091`, el problema no aparece. Se
+revirtió y quedó documentado en `docs/trabajo/20-*`.
+
+Para que la URL no tenga puerto **de verdad** hace falta un nombre y un
+certificado delante (CloudFront, ALB o un dominio): con una IP pelada y HTTP, el
+navegador pelea. Es infraestructura, no código, y no cambia nada de la
+arquitectura de mensajería que evalúa la pauta.
 
 ---
 
