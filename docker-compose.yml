@@ -449,6 +449,13 @@ services:
       API_PAGOS: "${API_BASE:-http://${HOST_PUBLICO:-localhost}:8083}"
       API_RECOMENDACIONES: "${API_BASE:-http://${HOST_PUBLICO:-localhost}:8084}"
       API_NOTIFICACIONES: "${API_BASE:-http://${HOST_PUBLICO:-localhost}:8088}"
+      # Identidad (fase 4, §12): la tienda pide el ID token a Cognito y el API
+      # Gateway lo valida en las rutas de identidad. Vacio = sin login, pero el
+      # catalogo y el carrito funcionan igual. El user pool se recrea cuando
+      # caduca el Learner Lab, por eso es configuracion y no va en el bundle.
+      COGNITO_REGION: "${COGNITO_REGION:-us-east-1}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID:-}"
+      COGNITO_POOL_ID: "${COGNITO_POOL_ID:-}"
     depends_on:
       ms-productos: { condition: service_healthy }
       ms-carrito: { condition: service_healthy }

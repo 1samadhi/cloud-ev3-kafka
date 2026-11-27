@@ -182,7 +182,16 @@ metodo(){   # $1 id, $2 verbo, $3 uri, $4 etiqueta
   if ! e=$(aws apigateway put-method --region "$REGION" --rest-api-id "$API" \
         --resource-id "$rec" --http-method "$verbo" --authorization-type NONE \
         --request-parameters "file://$TMP_URL/pm.json" 2>&1); then
-    err "$et $verbo put-method: $(head -c 80 <<< "$e")"; FALLOS+=1; return; fi
+    # Un metodo que ya existe no es un fallo: el script tiene que poder
+    # re-ejecutarse para agregar un verbo a una ruta ya publicada. put-method no
+    # acepta sobrescribir, pero la integracion y las respuestas de abajo si, y
+    # son las que importan.
+    if grep -q "ConflictException" <<< "$e"; then
+      :
+    else
+      err "$et $verbo put-method: $(head -c 80 <<< "$e")"; FALLOS+=1; return
+    fi
+  fi
   # type=HTTP, NO HTTP_PROXY: cada destino queda declarado.
   if ! e=$(aws apigateway put-integration --region "$REGION" --rest-api-id "$API" \
         --resource-id "$rec" --http-method "$verbo" --type HTTP \
@@ -230,11 +239,17 @@ RUTAS=(
   "8084|GET|/api/metricas|"
   "8084|POST|/api/interacciones|"
   # --- carrito y pedido
-  "8087|GET|/api/carrito|usuarioId"
+  # Los verbos salen de tienda/src/lib/api.ts, uno por uno: una ruta publicada
+  # con el verbo equivocado responde 403 "Missing Authentication Token" igual
+  # que una ruta inexistente, y en el navegador se ve como un fallo de red.
+  # Verificado el 26-11: por el gateway daban 403 y directo funcionaban
+  # PATCH /items/{id} (cambiar cantidad), DELETE /carrito (vaciar),
+  # DELETE /cupon (quitar), PUT /envio (paso del checkout).
+  "8087|GET,DELETE|/api/carrito|usuarioId"
   "8087|POST|/api/carrito/items|"
-  "8087|DELETE|/api/carrito/items/{productoId}|usuarioId"
-  "8087|POST|/api/carrito/cupon|"
-  "8087|POST|/api/carrito/envio|"
+  "8087|DELETE,PATCH|/api/carrito/items/{productoId}|usuarioId"
+  "8087|POST,DELETE|/api/carrito/cupon|"
+  "8087|POST,PUT|/api/carrito/envio|"
   "8087|GET|/api/carrito/sucursales|"
   "8087|GET,POST|/api/pedidos|usuarioId"
   "8087|GET|/api/pedidos/{id}|"
@@ -254,14 +269,19 @@ RUTAS=(
   # --- administracion de RabbitMQ y panel admin de la tienda
   "8089|GET|/api/rabbit/cluster|"
   "8089|GET|/api/rabbit/colas|"
-  "8086|GET|/api/productos/{id}/stock|"
+  "8086|GET,PUT|/api/productos/{id}/stock|"
+  "8086|GET|/api/productos/admin/stock|"
   "8087|GET|/api/admin/resumen|"
   "8087|GET|/api/admin/pedidos|"
 )
 
 log "Declarando ${#RUTAS[@]} rutas /api/* en la API $API (IP $IP)"
+# SOLO_RUTA permite re-correr una parte sin volver a tocar las 30 rutas: cada
+# escritura del management API va a ~1 por segundo y la corrida completa son
+# varios minutos. Ejemplo: SOLO_RUTA='/api/carrito' ./14-rutas-frontend-ev3.sh
 for ENTRADA in "${RUTAS[@]}"; do
   IFS='|' read -r PUERTO VERBOS RUTA QUERIES <<< "$ENTRADA"
+  if [ -n "${SOLO_RUTA:-}" ] && [[ "$RUTA" != *"$SOLO_RUTA"* ]]; then continue; fi
   if ! recurso "$RUTA"; then continue; fi
   REC="$REC_ID"
   URI="http://$IP:$PUERTO$RUTA"
