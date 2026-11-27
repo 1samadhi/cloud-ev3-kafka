@@ -36,13 +36,14 @@ sí. Este índice es el completo.
 | 16 | La tienda pasa a React + TS sobre los microservicios reales | tienda | `pedidos360-tienda/docs/trabajo/16-tienda-react-integrada.md` | `472fc23` |
 | 17 | El sistema completo levantado de verdad, y lo que destapó | backend | [17-compose-primer-arranque-real.md](17-compose-primer-arranque-real.md) | `6116e80`, `5d55d50`, `4c027b4`, `e8016ed` |
 | 18 | Identidad con Cognito, y tres fallos que el gateway escondía | backend + tienda | [18-cognito-identidad-en-el-borde.md](18-cognito-identidad-en-el-borde.md) | `9ecea47` · tienda `bc8ccce`, `958df92` |
+| 19 | Registro de cuentas, y tres errores que se disfrazaban de "microservicio caído" | backend + tienda | [19-registro-y-errores-disfrazados.md](19-registro-y-errores-disfrazados.md) | `ba1b61e` · tienda `4077815`, `5d6a0e5`, `efbff63` |
 
 Mitades que van juntas: **10 ↔ 16** (origen `TIENDA` y `/callback`), **11 ↔ 16** (recomendaciones
 con motivo), **13/14 ↔ 16** (catálogo, carrito, pedidos), **15 ↔ 16** (campana SSE), **17 ↔ 16**
 (insignia de salud y CORS de Actuator), **11 ↔ P1 de PENDIENTES** (la consola debe pintar el
 snapshot nuevo).
 
-Siguiente número libre: **18**.
+Siguiente número libre: **20**.
 
 ## Lo que conviene saber antes de tocar algo
 
@@ -51,8 +52,10 @@ Siguiente número libre: **18**.
 - **El contrato manda.** Nombres de tópico, grupos, campos de evento y puertos están en
   `PLAN-INTEGRACION-EV3.md`; no hay librería compartida que falle al compilar si uno se desalinea.
 - **Qué se ejecutó en infraestructura real**: el sistema completo en Docker local el 22-11
-  (doc 17, evidencias en `evidencias/ev3-docker/`). **No** se ejecutó nada en AWS: ni el
-  Terraform, ni `despliegue/`, ni DynamoDB real.
+  (doc 17, evidencias en `evidencias/ev3-docker/`) y el despliegue en **AWS** de la cuenta
+  851725287694 (`18.211.30.140`, gateway `vih5lem02j`) con los scripts de `despliegue/`,
+  el API Gateway y Cognito, verificado el 26/27-11 (docs 18 y 19). **No** se ejecutó el
+  Terraform de telemetría ni DynamoDB real (P3, cerrado por no exigirlo la pauta).
 - **Maven con JDK 23 o superior**: los `pom.xml` fijan Lombok 1.18.42 y `<proc>full</proc>`. En
   Windows con git-bash, `cmd.exe /c mvn.cmd …`.
 - **Cada documento tiene una sección "No verificado".** Antes de asumir que algo funciona en un
