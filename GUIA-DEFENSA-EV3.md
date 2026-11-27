@@ -1,5 +1,11 @@
 # Guía de defensa — EV3 Pedidos360
 
+> ⚠️ **Este documento lo escribió Ismael, desde su lab.** Habla de la IP
+> `44.208.92.186`, el gateway `khca9i6w62`, 22 rutas `/v1`, "DynamoDB real" y
+> "Cognito no implementado": **nada de eso es el despliegue de Diego**. Las dos
+> secciones sobre las colas y los puertos (27-11) sí están medidas en el de Diego.
+> Para estudiar la demo de Diego: **`KIT-ESTUDIO-EV3.md`**.
+
 Para estudiar antes de presentar. Las respuestas están en el orden en que es
 probable que las preguntas aparezcan, y cada una dice **dónde mirar** si querés
 el detalle.

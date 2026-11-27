@@ -44,7 +44,7 @@ Consola  http://18.211.30.140:8090      RabbitMQ  http://18.211.30.140:15672
 | `BASE_HOST=18.211.30.140 prueba-humo.py` | **TODO OK** (25 comprobaciones) |
 | `prueba-identidad.py <client-id>` | **TODO OK** (identidad, suplantación, compra por el gateway) |
 | `config.js` de la tienda | las 5 API en la URL del gateway **y** el client id de Cognito |
-| **La tienda en el navegador** | insignia **"backend conectado"**, 51 productos, sesión de Ana con sus pedidos, `/admin` por el claim `cognito:groups`, 0 errores de consola |
+| **La tienda en el navegador** | insignia **"backend conectado"**, **20 productos en 8 categorías** (medido el 27-11 con `GET /api/productos`; el catálogo de la semilla son 20, no 51), sesión de Ana con sus pedidos, `/admin` por el claim `cognito:groups`, 0 errores de consola |
 | Rutas protegidas | **401** sin token · **200** con token (11 operaciones) |
 | Suplantación por `X-Usuario-Id` | ya no funciona: el gateway reescribe la cabecera con `claims.email` |
 | Antifraude por el gateway | `[200, 200, 200, 429]`, con CORS en el 429 |
