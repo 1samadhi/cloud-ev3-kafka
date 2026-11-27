@@ -210,11 +210,41 @@ metodo(){   # $1 id, $2 verbo, $3 uri, $4 etiqueta
     err "$et $verbo integration-response: $(head -c 80 <<< "$e")"; FALLOS+=1; return; fi
 }
 
-preflight(){   # $1 id, $2 uri
-  local rec="$1" uri="$2"
+preflight(){   # $1 id, $2 uri, $3 ruta
+  local rec="$1" uri="$2" ruta="${3:-}" p pm pi
+  # Los parametros de RUTA tambien hacen falta en el preflight: la URI de la
+  # integracion lleva {id} y, si no se declara de donde sale, API Gateway no
+  # puede armarla y responde 500 al OPTIONS. El navegador entonces ni manda la
+  # peticion real y el frontend reporta "el servicio no responde", que manda a
+  # buscar un microservicio caido que esta perfectamente sano.
+  # Solo se ve con una cabecera que dispare preflight (Authorization,
+  # X-Usuario-Id) sobre una ruta con parametro: /api/productos/{id} falla y
+  # /api/productos responde bien.
+  local pmr pir
+  pmr='"method.request.header.Origin": false, "method.request.header.Access-Control-Request-Method": false, "method.request.header.Access-Control-Request-Headers": false'
+  pir='"integration.request.header.Origin": "method.request.header.Origin", "integration.request.header.Access-Control-Request-Method": "method.request.header.Access-Control-Request-Method", "integration.request.header.Access-Control-Request-Headers": "method.request.header.Access-Control-Request-Headers"'
+  for p in $(grep -oE '\{[a-zA-Z]+\}' <<< "$ruta" | tr -d '{}'); do
+    pmr="$pmr, \"method.request.path.$p\": true"
+    pir="$pir, \"integration.request.path.$p\": \"method.request.path.$p\""
+  done
+  printf '{%s}' "$pmr" > "$TMP/pre-pm.json"
+  printf '{%s}' "$pir" > "$TMP/pre-pi.json"
+
   aws apigateway put-method --region "$REGION" --rest-api-id "$API" \
     --resource-id "$rec" --http-method OPTIONS --authorization-type NONE \
     --request-parameters "file://$TMP_URL/pre-pm.json" >/dev/null 2>&1 || true
+  # Un OPTIONS que ya existia conserva sus parametros viejos y put-method no
+  # puede sobrescribirlo (ConflictException). Se agregan uno por uno con
+  # update-*: `op=add`, no `replace`, porque el parametro todavia NO existe y un
+  # replace sobre algo ausente no hace nada y no da error.
+  for p in $(grep -oE '\{[a-zA-Z]+\}' <<< "$ruta" | tr -d '{}'); do
+    aws apigateway update-method --region "$REGION" --rest-api-id "$API" \
+      --resource-id "$rec" --http-method OPTIONS \
+      --patch-operations "op=add,path=/requestParameters/method.request.path.$p,value=true" >/dev/null 2>&1 || true
+    aws apigateway update-integration --region "$REGION" --rest-api-id "$API" \
+      --resource-id "$rec" --http-method OPTIONS \
+      --patch-operations "op=add,path=/requestParameters/integration.request.path.$p,value=method.request.path.$p" >/dev/null 2>&1 || true
+  done
   aws apigateway put-integration --region "$REGION" --rest-api-id "$API" \
     --resource-id "$rec" --http-method OPTIONS --type HTTP \
     --integration-http-method OPTIONS --uri "$uri" \
@@ -304,7 +334,7 @@ for ENTRADA in "${RUTAS[@]}"; do
   for V in $(tr ',' ' ' <<< "$VERBOS"); do
     metodo "$REC" "$V" "$URI" "$RUTA"
   done
-  preflight "$REC" "$URI"
+  preflight "$REC" "$URI" "$RUTA"
   printf '    %-7s %-34s -> :%s\n' "$VERBOS" "$RUTA" "$PUERTO"
 done
 

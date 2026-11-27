@@ -129,6 +129,33 @@ for ENTRADA in "${PROTEGIDAS[@]}"; do
   done
 done
 
+# --------------------------------------------------- CORS en los errores del borde
+# Un 401 del authorizer NO lo genera el microservicio: lo genera el API Gateway,
+# y por lo tanto no pasa por los mapeos CORS del 15 (que son por metodo). Sin
+# Access-Control-Allow-Origin, el navegador DESCARTA la respuesta: `fetch` lanza
+# y la tienda reporta "el servicio no responde". Un token vencido o una llamada
+# sin Authorization se disfrazan de microservicio caido, que es exactamente lo
+# que hizo perder una hora buscando un ms-pago sano.
+#
+# Por que el comodin: las gateway responses solo aceptan valores ESTATICOS
+# ('...'), no `method.request.header.Origin`, asi que no se puede reflejar el
+# origen real como si hace el 15. El comodin aparece unicamente en los errores
+# que fabrica el gateway; las respuestas de los servicios siguen devolviendo el
+# origen exacto. Es admisible porque la tienda autentica con la cabecera
+# Authorization y no con cookies: no hay credenciales que `*` pueda exponer.
+log "CORS en las respuestas que fabrica el gateway"
+PARAMS='{"gatewayresponse.header.Access-Control-Allow-Origin":"'"'"'*'"'"'","gatewayresponse.header.Access-Control-Allow-Headers":"'"'"'authorization,content-type,x-usuario-id'"'"'"}'
+PLANTILLA='{"application/json":"{\"message\":$context.error.messageString}"}'
+for TIPO in UNAUTHORIZED ACCESS_DENIED DEFAULT_4XX DEFAULT_5XX; do
+  # put-gateway-response reemplaza por completo, asi que sirve igual exista o no.
+  if aws_api put-gateway-response --rest-api-id "$API" --response-type "$TIPO" \
+       --response-parameters "$PARAMS" --response-templates "$PLANTILLA" >/dev/null; then
+    ok "$TIPO devuelve cabeceras CORS"
+  else
+    err "$TIPO no pude configurarlo"; FALLOS+=1
+  fi
+done
+
 log "Publicando en el stage '$STAGE'"
 aws_api create-deployment --rest-api-id "$API" --stage-name "$STAGE" \
   --description "authorizer de Cognito en las rutas de identidad" --query id --output text | sed 's/^/    despliegue /'
