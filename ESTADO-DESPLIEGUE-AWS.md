@@ -19,6 +19,44 @@ Ultima actualizacion: 2026-11-27 12:55 (-03)
 | API Gateway | `https://khca9i6w62.execute-api.us-east-1.amazonaws.com/desarrollo` |
 | Repo backend | `6e56d17` en master (local). **La instancia esta en `95ec1af`**: los cambios del 27-11 se aplicaron por override y parche, sin `git pull`, para no rearmar el stack el dia de la entrega |
 
+### Datos de integracion (para apuntar un front a ESTE backend)
+
+Esto es lo que hay que pasarle a quien configure un frontend contra esta cuenta. **Al front no
+se le da una IP**: se le da la URL del stage. La IP solo sirve para lo que a proposito no pasa
+por el gateway.
+
+```
+# lo unico que necesita el FRONT (las cinco API_* valen lo mismo)
+API_BASE=https://khca9i6w62.execute-api.us-east-1.amazonaws.com/desarrollo
+
+# lo que NO pasa por el gateway (API Gateway REST bufferea, y un stream no lo atraviesa)
+WS_URL=ws://44.208.92.186:8084/ws/metricas
+SSE     http://44.208.92.186:8088/api/notificaciones/stream
+HOST_PUBLICO=44.208.92.186      # decide CORS_ORIGENES y el returnUrl de Webpay
+KAFKA_HOST=44.208.92.186
+
+# paginas servidas por la EC2
+tienda http://44.208.92.186:8091   consola http://44.208.92.186:8090
+kafka-ui http://44.208.92.186:8080 rabbitmq http://44.208.92.186:15672
+```
+
+Tres advertencias para quien lo configure:
+
+1. **Si el front se sirve desde otro origen** (otra EC2, `localhost:5173`, un `ngrok`), ese
+   origen hay que agregarlo a `CORS_ORIGENES` en el `docker-compose.override.yml` de ESTA
+   instancia y recrear los servicios. Si no, Spring no devuelve cabeceras CORS y el navegador
+   muestra "ms-productos no responde" con todo el backend sano. Hoy la lista acepta
+   `http://44.208.92.186:8090`, `:8091` y `localhost:5173/8090/8091`.
+2. **La raiz del stage responde `Missing Authentication Token`**: no es autenticacion, es que
+   esa ruta no existe. Para comprobar el gateway hay que abrir una ruta real, por ejemplo
+   `/desarrollo/api/productos/categorias`.
+3. **La consola va a los puertos directos a proposito**: usa rutas de administracion (PUT de
+   configuracion de topicos, particiones, reset de offsets, crear/borrar colas) que el `14` no
+   publica. Apuntarla entera al gateway la rompe.
+
+Esta cuenta **no tiene Cognito**: las 11 operaciones que en el lab de Diego exigen token, aca
+estan abiertas, y la tienda usa el login de cuentas demo.
+
 ### Puertos
 
 | Servicio | Puerto | Rutas |
