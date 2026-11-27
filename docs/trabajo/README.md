@@ -35,6 +35,7 @@ sí. Este índice es el completo.
 | 15 | RabbitMQ: clúster, notificaciones con DLQ y administración | backend | [15-rabbitmq-notificaciones.md](15-rabbitmq-notificaciones.md) | `34c7d51`, `be64757` |
 | 16 | La tienda pasa a React + TS sobre los microservicios reales | tienda | `pedidos360-tienda/docs/trabajo/16-tienda-react-integrada.md` | `472fc23` |
 | 17 | El sistema completo levantado de verdad, y lo que destapó | backend | [17-compose-primer-arranque-real.md](17-compose-primer-arranque-real.md) | `6116e80`, `5d55d50`, `4c027b4`, `e8016ed` |
+| 18 | Identidad con Cognito, y tres fallos que el gateway escondía | backend + tienda | [18-cognito-identidad-en-el-borde.md](18-cognito-identidad-en-el-borde.md) | `9ecea47` · tienda `bc8ccce`, `958df92` |
 
 Mitades que van juntas: **10 ↔ 16** (origen `TIENDA` y `/callback`), **11 ↔ 16** (recomendaciones
 con motivo), **13/14 ↔ 16** (catálogo, carrito, pedidos), **15 ↔ 16** (campana SSE), **17 ↔ 16**

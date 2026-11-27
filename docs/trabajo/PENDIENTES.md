@@ -1,6 +1,6 @@
 # Pendientes — listos para tomar
 
-Estado al **26-11-2026**, versión `v3.0.0-rc.1`. Entrega: **viernes 27-11**.
+Estado al **27-11-2026**, versión `v3.0.0-rc.1`. Entrega: **viernes 27-11**.
 
 Cada pendiente trae el contexto necesario para tomarlo sin haber estado en la conversación:
 por qué importa, dónde se toca, qué hacer, cuándo está terminado y cómo comprobarlo. Antes de
@@ -13,9 +13,9 @@ Son requisitos de la entrega, no mejoras opcionales.
 
 | | Observación | Estado |
 |---|---|---|
-| F1 | **API Gateway para el frontend** | ✅ `despliegue/14-rutas-frontend-ev3.sh`: 29 rutas `/api/*` y `API_BASE` en el compose. El contrato `/v1` del `10`/`12` no le servía al navegador (ver cabecera del `14`) |
+| F1 | **API Gateway para el frontend** | ✅ `despliegue/14-rutas-frontend-ev3.sh`: 35 rutas y `API_BASE` **puesto en el `.env` de la instancia y verificado en el navegador** el 27-11 (`evidencias/56`). El contrato `/v1` del `10`/`12` no le servía al navegador (ver cabecera del `14`). La **tienda** entra entera por el gateway; la **consola** sigue directa (usa rutas de administración que el `14` no publica) |
 | F2 | **No usar proxy en backend** | ✅ ya estaba: ningún `proxy_pass` en los dos `nginx.conf`, que citan la observación |
-| F3 | **CORS con la ruta de la API del frontend** | ✅ el gateway reenvía `Origin` y devuelve la respuesta CORS del servicio; sin comodín `*` |
+| F3 | **CORS con la ruta de la API del frontend** | ✅ el gateway reenvía `Origin` y devuelve la respuesta CORS del servicio; sin comodín `*`. Desde el `15`, también en las respuestas de error |
 | F4 | **Todas las colas deben funcionar** | ✅ `evidencias/55`: las tres colas con mensajes reales. Los 4 DLT de Kafka, en `evidencias/51` |
 
 ## Resumen
@@ -25,7 +25,7 @@ Son requisitos de la entrega, no mejoras opcionales.
 | P1 | Consola alineada al backend nuevo | cloud-ev3-front | **alta** | 4–6 h | **abierto** · Diego |
 | P2 | `despliegue/` para la arquitectura nueva | cloud-ev3-kafka | alta | — | ✅ hecho (scripts `01`+`09`+`11`–`14`, dos labs) |
 | P3 | Terraform de telemetría en el Learner Lab | cloud-ev3-kafka | — | — | ✅ **cerrado**: la pauta no exige Terraform y el +2 y el +3 ya están evidenciados (`evidencias/52`, `53`) |
-| P4 | Login con Cognito + filtro JWT | los tres | baja | 5–8 h | **fuera de alcance** para esta entrega |
+| P4 | Login con Cognito + filtro JWT | los tres | baja | 5–8 h | ✅ **hecho** en la **tienda** (doc `18`, `evidencias/56`): user pool real, el rol sale de `cognito:groups` y el **API Gateway** valida el JWT y reescribe `X-Usuario-Id` con el claim, así que los 7 servicios no cambiaron. Falta en la **consola** (va con P1) |
 | P5 | Panel admin de la tienda: ingresos que no cuadran | ambos | — | — | ✅ hecho (`evidencias/54`) |
 | P6 | Evidencia de un pago Webpay **aprobado** | — | **alta**, 5 min | 5 min | **abierto** · cualquiera |
 | P7 | Ensayo de la demo y evidencias de fallos | — | **alta** | 2 h | **abierto** · los dos |
@@ -34,16 +34,24 @@ Son requisitos de la entrega, no mejoras opcionales.
 
 Lo que queda: **P1**, **P6** y **P7**. Si falta tiempo se recorta P8 → P9. P6 y P7 no se recortan.
 
+Al cerrar P4 apareció trabajo nuevo, chico pero real: la consola sigue entrando por los puertos
+directos (necesita rutas de administración que el `14` no publica) y no tiene pantalla de ingreso,
+así que la frase "los dos frontends pasan por el gateway" sólo vale para la tienda. Las dos cosas
+son parte de P1.
+
 ## Dos cosas que hay que corregir antes de entregar
 
-1. **`evidencias/50-gateway-7ms`** afirma que las 12 rutas del gateway responden 200. Las que
-   creó el `12` nunca tuvieron *integration response* y devuelven **500**; el verificador del
-   propio script imprime `200000` y reporta "0 bien" sin que se note. O se arregla con el `13`
-   (requiere el parche de `cygpath` si se corre desde Windows) o se corrige el documento.
-2. **`ESTADO-DESPLIEGUE-AWS.md`** describe sólo el lab de Ismael (cuenta 471112736485). Hay un
-   segundo despliegue en el de Diego (851725287694, IP fija `18.211.30.140`, gateway
-   `vih5lem02j`), que es el que se usa para la demo. Hay que documentar los dos y decir cuál es
-   el principal.
+1. **`evidencias/50-gateway-7ms`** afirma que las 12 rutas del gateway responden 200. **Re-medido el
+   27-11 una por una: de las 13 `GET` de `/v1`, siete responden 500**
+   (`/v1/carrito`, `/v1/notificaciones`, `/v1/pedidos`, `/v1/productos`,
+   `/v1/productos/categorias`, `/v1/rabbit/cluster`, `/v1/rabbit/colas`) y `/v1/recomendaciones` da
+   200 con `Required request parameter 'userId' is not present`, o sea tampoco sirve. No son cinco,
+   son siete, y el verificador del propio script imprime `200000` y reporta "0 bien" sin que se note.
+   Lo más corto y honesto: **corregir el documento y decir que `/v1` quedó superado por las rutas
+   `/api/*` del `14`**, que son las que usa el frontend y están verificadas.
+2. **`ESTADO-DESPLIEGUE-AWS.md`** describe sólo el lab de Ismael (cuenta 471112736485) y sigue
+   hablando como si fuera el único despliegue. El de Diego está en `ESTADO-DESPLIEGUE-DIEGO.md` y es
+   el principal: basta una nota arriba que lo diga y enlace al otro.
 
 ## Cómo trabajar en paralelo sin pisarse
 
@@ -56,7 +64,7 @@ Lo que queda: **P1**, **P6** y **P7**. Si falta tiempo se recorta P8 → P9. P6 
 - **Archivos compartidos**: `docker-compose.yml` y `PLAN-INTEGRACION-EV3.md` los tocan casi
   todos los pendientes. Cambios chicos, commit aparte y avisar.
 - **Cada pendiente terminado** suma su documento `docs/trabajo/NN-<tarea>.md` (siguiente
-  número libre: **18**) y su fila en `docs/trabajo/README.md`. Plantilla: cualquiera de los
+  número libre: **19**) y su fila en `docs/trabajo/README.md`. Plantilla: cualquiera de los
   documentos 10–17. La sección "No verificado" es obligatoria.
 
 ---

@@ -229,7 +229,11 @@ preflight(){   # $1 id, $2 uri
 }
 
 # ---------------------------------------------------------------- las rutas
-# puerto | verbos | ruta | query strings
+# puerto | verbos | ruta | query strings | ruta en el servicio (opcional)
+# El quinto campo existe solo para /salud/*: la ruta publica no coincide con la
+# del servicio (/actuator/health). En el resto, el gateway es transparente y la
+# ruta publica ES la del servicio, que es lo que hace facil de defender el
+# diseño y de depurar un fallo.
 RUTAS=(
   # --- lo que se muestra primero en la demo: catalogo y navegacion
   "8086|GET|/api/productos|categoria,q,orden"
@@ -273,6 +277,17 @@ RUTAS=(
   "8086|GET|/api/productos/admin/stock|"
   "8087|GET|/api/admin/resumen|"
   "8087|GET|/api/admin/pedidos|"
+  # --- salud de los cinco servicios que consume la tienda
+  # Con una sola base, `${base}/actuator/health` no distingue de quien es la
+  # salud, y el gateway no publica /actuator: responde 403 SIN cabeceras CORS, y
+  # el navegador cuenta eso como fallo de red. Resultado visible: la insignia de
+  # la tienda decia "modo demo · sin backend" con los cinco servicios arriba.
+  # Cinco rutas explicitas, cada una al /actuator/health de su puerto.
+  "8086|GET|/salud/productos||/actuator/health"
+  "8087|GET|/salud/carrito||/actuator/health"
+  "8083|GET|/salud/pagos||/actuator/health"
+  "8084|GET|/salud/recomendaciones||/actuator/health"
+  "8088|GET|/salud/notificaciones||/actuator/health"
 )
 
 log "Declarando ${#RUTAS[@]} rutas /api/* en la API $API (IP $IP)"
@@ -280,11 +295,11 @@ log "Declarando ${#RUTAS[@]} rutas /api/* en la API $API (IP $IP)"
 # escritura del management API va a ~1 por segundo y la corrida completa son
 # varios minutos. Ejemplo: SOLO_RUTA='/api/carrito' ./14-rutas-frontend-ev3.sh
 for ENTRADA in "${RUTAS[@]}"; do
-  IFS='|' read -r PUERTO VERBOS RUTA QUERIES <<< "$ENTRADA"
+  IFS='|' read -r PUERTO VERBOS RUTA QUERIES DESTINO <<< "$ENTRADA"
   if [ -n "${SOLO_RUTA:-}" ] && [[ "$RUTA" != *"$SOLO_RUTA"* ]]; then continue; fi
   if ! recurso "$RUTA"; then continue; fi
   REC="$REC_ID"
-  URI="http://$IP:$PUERTO$RUTA"
+  URI="http://$IP:$PUERTO${DESTINO:-$RUTA}"
   params "$RUTA" "$QUERIES"
   for V in $(tr ',' ' ' <<< "$VERBOS"); do
     metodo "$REC" "$V" "$URI" "$RUTA"

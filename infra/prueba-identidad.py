@@ -40,9 +40,12 @@ def pedir(url, metodo="GET", cuerpo=None, token=None, usuario=None, timeout=25):
         req.add_header("Authorization", "Bearer " + token)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, r.read(1500).decode("utf-8", "replace")
+            # Entero, no truncado: el cuerpo se parsea como JSON mas abajo y un
+            # recorte a mitad de un array da un error de parseo que parece un
+            # fallo del servicio.
+            return r.status, r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
-        return e.code, e.read(600).decode("utf-8", "replace")
+        return e.code, e.read().decode("utf-8", "replace")
     except Exception as e:
         return 0, "ERR %s" % e
 
@@ -122,7 +125,7 @@ print("\n6. Compra completa por el gateway, con sesion real")
 cod, _ = pedir(GW + "/api/carrito/items", "POST", {"productoId": "item_107", "cantidad": 1}, tok_ana, ANA)
 comprobar("agregar al carrito", cod == 200, "HTTP %s" % cod)
 cod, _ = pedir(GW + "/api/carrito/envio", "PUT",
-               {"modo": "RETIRO", "sucursal": "SANTIAGO_CENTRO", "nombre": "Ana Rojas", "telefono": "+56990000000"},
+                {"metodo": "RETIRO", "sucursal": "SANTIAGO_CENTRO"},
                tok_ana, ANA)
 comprobar("datos de envio (PUT, el verbo que faltaba)", cod == 200, "HTTP %s" % cod)
 cod, cuerpo = pedir(GW + "/api/pedidos", "POST", None, tok_ana, ANA)
